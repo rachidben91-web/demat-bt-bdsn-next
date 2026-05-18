@@ -1,0 +1,1423 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import {
+  createActivityDefinition,
+  deactivateActivityDefinition,
+  releaseSupportDayControl,
+  saveSupportDayAssignments,
+  takeSupportDayControl,
+  updateActivityDefinition,
+} from "@/app/actions/support-journee";
+import { AppShellHeader } from "@/components/app-shell-header";
+import { supportTabs } from "@/data/support-journee";
+import type { OfficeModuleKey } from "@/lib/office-access";
+import type {
+  ActivityOption,
+  AvailableSupportDay,
+  DailyAssignmentRow,
+  SupportJourneeData,
+} from "@/lib/support-journee";
+
+type TabId = (typeof supportTabs)[number]["id"];
+
+function cx(...parts: Array<string | false | null | undefined>) {
+  return parts.filter(Boolean).join(" ");
+}
+
+function statusTone(status: string) {
+  if (status === "Present") {
+    return "bg-emerald-100 text-emerald-700";
+  }
+
+  if (status === "Greve") {
+    return "bg-amber-100 text-amber-700";
+  }
+
+  return "bg-rose-100 text-rose-700";
+}
+
+function metricTone(label: string) {
+  if (label.startsWith("Presents")) {
+    return "bg-emerald-50 text-emerald-700";
+  }
+
+  if (label.startsWith("Greve")) {
+    return "bg-amber-50 text-amber-700";
+  }
+
+  return "bg-rose-50 text-rose-700";
+}
+
+function rsfTone(level: "favorable" | "surveiller" | "deconseillee") {
+  if (level === "favorable") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+
+  if (level === "surveiller") {
+    return "border-amber-200 bg-amber-50 text-amber-700";
+  }
+
+  return "border-rose-200 bg-rose-50 text-rose-700";
+}
+
+function formatLockTimestamp(value: string | null) {
+  if (!value) {
+    return "Aucun verrou actif";
+  }
+
+  return new Intl.DateTimeFormat("fr-FR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function formatLastUpdate(value: string | null) {
+  if (!value) {
+    return "Aucune modification";
+  }
+
+  return new Intl.DateTimeFormat("fr-FR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function normalizeField(value: string) {
+  return value === "—" ? "" : value;
+}
+
+function normalizeActivity(value: string | null) {
+  return value ?? "";
+}
+
+function getContrastColor(hexColor: string) {
+  const value = hexColor.replace("#", "");
+
+  if (value.length !== 6) {
+    return "#0f172a";
+  }
+
+  const red = Number.parseInt(value.slice(0, 2), 16);
+  const green = Number.parseInt(value.slice(2, 4), 16);
+  const blue = Number.parseInt(value.slice(4, 6), 16);
+  const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
+
+  return luminance > 0.7 ? "#0f172a" : "#ffffff";
+}
+
+function activitySelectStyle(activity: ActivityOption | undefined) {
+  if (!activity) {
+    return undefined;
+  }
+
+  return {
+    backgroundColor: activity.color,
+    color: getContrastColor(activity.color),
+    borderColor: activity.color,
+  };
+}
+
+type EditableAssignment = DailyAssignmentRow;
+type ActivityStatusValue = ActivityOption["status"];
+
+type ActivityDraft = {
+  label: string;
+  color: string;
+  status: ActivityStatusValue;
+};
+
+type SupportJourneeWorkspaceProps = {
+  allowedModules?: OfficeModuleKey[];
+  data: SupportJourneeData;
+  isSuperAdmin?: boolean;
+  role: string | null;
+  userEmail: string | null;
+};
+
+function shiftDate(dateString: string, offsetDays: number) {
+  const date = new Date(`${dateString}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + offsetDays);
+
+  return date.toISOString().slice(0, 10);
+}
+
+function startOfMonth(dateString: string) {
+  const date = new Date(`${dateString}T12:00:00Z`);
+  date.setUTCDate(1);
+
+  return date.toISOString().slice(0, 10);
+}
+
+function shiftMonth(dateString: string, offsetMonths: number) {
+  const date = new Date(`${dateString}T12:00:00Z`);
+  date.setUTCMonth(date.getUTCMonth() + offsetMonths, 1);
+
+  return date.toISOString().slice(0, 10);
+}
+
+function formatCalendarHeader(dateString: string) {
+  return new Intl.DateTimeFormat("fr-FR", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(`${dateString}T12:00:00Z`));
+}
+
+function buildCalendarDays(monthDate: string) {
+  const monthStart = new Date(`${monthDate}T12:00:00Z`);
+  const firstDay = new Date(
+    Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth(), 1),
+  );
+  const firstWeekday = (firstDay.getUTCDay() + 6) % 7;
+  const gridStart = new Date(firstDay);
+  gridStart.setUTCDate(firstDay.getUTCDate() - firstWeekday);
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const day = new Date(gridStart);
+    day.setUTCDate(gridStart.getUTCDate() + index);
+
+    return {
+      iso: day.toISOString().slice(0, 10),
+      dayNumber: day.getUTCDate(),
+      inCurrentMonth: day.getUTCMonth() === monthStart.getUTCMonth(),
+    };
+  });
+}
+
+function formatDateDisplay(dateString: string) {
+  const date = new Date(`${dateString}T12:00:00Z`);
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const year = date.getUTCFullYear();
+
+  return `${day}/${month}/${year}`;
+}
+
+function parseDisplayDateToIso(dateString: string) {
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(dateString.trim());
+
+  if (!match) {
+    return null;
+  }
+
+  const [, day, month, year] = match;
+  return `${year}-${month}-${day}`;
+}
+
+export function SupportJourneeWorkspace({
+  allowedModules = [],
+  data,
+  isSuperAdmin = false,
+  role,
+  userEmail,
+}: SupportJourneeWorkspaceProps) {
+  const {
+    activityDefinitions,
+    availableDates,
+    dailyAssignments,
+    dayWeather,
+    headerWeather,
+    historyEntries,
+    supportMetrics,
+    supportSummary,
+    technicians,
+    source,
+  } = data;
+  const [activeTab, setActiveTab] = useState<TabId>("brief");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedTechnician, setSelectedTechnician] = useState("all");
+  const [historyAgent, setHistoryAgent] = useState("all");
+  const [appliedHistoryAgent, setAppliedHistoryAgent] = useState("all");
+  const [historyStartDate, setHistoryStartDate] = useState("");
+  const [historyEndDate, setHistoryEndDate] = useState("");
+  const [appliedHistoryStartDate, setAppliedHistoryStartDate] = useState("");
+  const [appliedHistoryEndDate, setAppliedHistoryEndDate] = useState("");
+  const [activitySearch, setActivitySearch] = useState("");
+  const [assignments, setAssignments] = useState<EditableAssignment[]>(dailyAssignments);
+  const [editStatus, setEditStatus] = useState(supportSummary.editStatus);
+  const [lockedBy, setLockedBy] = useState(supportSummary.lockedBy);
+  const [lockedAt, setLockedAt] = useState(supportSummary.lockedAt);
+  const [lastUpdate, setLastUpdate] = useState(supportSummary.lastUpdate);
+  const [statusMessage, setStatusMessage] = useState(
+    source === "mock"
+      ? "Mode maquette actif : les actions restent locales."
+      : supportSummary.savedDayStatus,
+  );
+  const currentDayDate = supportSummary.dayDate ?? new Date().toISOString().slice(0, 10);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [visibleMonth, setVisibleMonth] = useState(startOfMonth(currentDayDate));
+  const [newActivity, setNewActivity] = useState<ActivityDraft>({
+    label: "",
+    color: "#3b82f6",
+    status: "Present",
+  });
+  const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
+  const [editingActivity, setEditingActivity] = useState<ActivityDraft | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+
+  const isLockedByCurrentUser = Boolean(userEmail) && lockedBy === userEmail;
+  const canTakeControl =
+    source === "supabase" && (!lockedBy || isLockedByCurrentUser);
+  const canEdit = source === "mock" || isLockedByCurrentUser;
+  const hasUnsavedChanges =
+    JSON.stringify(assignments) !== JSON.stringify(dailyAssignments);
+  const availableDateMap = new Map(
+    availableDates.map((item: AvailableSupportDay) => [item.date, item.hasData]),
+  );
+  const calendarDays = buildCalendarDays(visibleMonth);
+  const activityByLabel = new Map(activityDefinitions.map((activity) => [activity.label, activity]));
+  const liveMetrics = assignments.reduce(
+    (accumulator, assignment) => {
+      const activity = assignment.activity ? activityByLabel.get(assignment.activity) : undefined;
+
+      if (activity?.status === "Absent") {
+        accumulator.absents += 1;
+      } else if (activity?.status === "Present") {
+        accumulator.presents += 1;
+      }
+
+      if (assignment.gtv === "Oui") {
+        accumulator.greve += 1;
+      }
+
+      return accumulator;
+    },
+    {
+      presents: 0,
+      absents: 0,
+      greve: 0,
+    },
+  );
+
+  const filteredAssignments = assignments.filter((assignment) => {
+    const bySearch =
+      searchTerm.length === 0 ||
+      assignment.agent.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      normalizeActivity(assignment.activity).toLowerCase().includes(searchTerm.toLowerCase()) ||
+      assignment.observations.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const byTechnician =
+      selectedTechnician === "all" || assignment.technicianId === selectedTechnician;
+
+    return bySearch && byTechnician;
+  });
+
+  const filteredActivities = activityDefinitions.filter((activity) =>
+    activity.label.toLowerCase().includes(activitySearch.toLowerCase()),
+  );
+
+  const filteredHistory = historyEntries.filter((entry) =>
+    {
+      const entryIsoDate = parseDisplayDateToIso(entry.date);
+      const byAgent = appliedHistoryAgent === "all" ? true : entry.agent === appliedHistoryAgent;
+      const byStartDate =
+        !appliedHistoryStartDate || !entryIsoDate ? true : entryIsoDate >= appliedHistoryStartDate;
+      const byEndDate =
+        !appliedHistoryEndDate || !entryIsoDate ? true : entryIsoDate <= appliedHistoryEndDate;
+
+      return byAgent && byStartDate && byEndDate;
+    },
+  );
+
+  function updateAssignment(
+    assignmentId: string,
+    field: keyof Pick<
+      EditableAssignment,
+      | "activity"
+      | "observations"
+      | "briefAgence"
+      | "briefDistance"
+      | "debriefAgence"
+      | "debriefDistance"
+      | "gtv"
+    >,
+    value: string | null,
+  ) {
+    setAssignments((current) =>
+      current.map((assignment) =>
+        assignment.id === assignmentId ? { ...assignment, [field]: value } : assignment,
+      ),
+    );
+  }
+
+  function syncActionResult(result: {
+    ok: boolean;
+    message: string;
+    editStatus?: string;
+    lastModifiedAt?: string | null;
+    lockedBy?: string | null;
+    lockedAt?: string | null;
+  }) {
+    setStatusMessage(result.message);
+
+    if (result.editStatus) {
+      setEditStatus(result.editStatus);
+    }
+
+    if (result.lockedBy !== undefined) {
+      setLockedBy(result.lockedBy);
+    }
+
+    if (result.lockedAt !== undefined) {
+      setLockedAt(result.lockedAt);
+    }
+
+    if (result.lastModifiedAt !== undefined) {
+      setLastUpdate(formatLastUpdate(result.lastModifiedAt));
+    }
+  }
+
+  function handleTakeControl() {
+    if (!canTakeControl) {
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await takeSupportDayControl({
+        dayId: supportSummary.dayId,
+        dayDate: currentDayDate,
+      });
+      syncActionResult(result);
+    });
+  }
+
+  function handleReleaseControl() {
+    if (!supportSummary.dayId || source !== "supabase") {
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await releaseSupportDayControl(supportSummary.dayId!);
+      syncActionResult(result);
+    });
+  }
+
+  function handleSave() {
+    if (source === "mock") {
+      setStatusMessage("Mode maquette : modifications conservees localement.");
+      setLastUpdate("Brouillon local");
+      return;
+    }
+
+    if (!canEdit) {
+      setStatusMessage("Prenez la main sur la journee avant d'enregistrer.");
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await saveSupportDayAssignments(
+        {
+          dayId: supportSummary.dayId,
+          dayDate: currentDayDate,
+        },
+        assignments.map((assignment) => ({
+          id: assignment.id,
+          activity: assignment.activity,
+          observations: assignment.observations,
+          briefAgence: assignment.briefAgence,
+          briefDistance: assignment.briefDistance,
+          debriefAgence: assignment.debriefAgence,
+          debriefDistance: assignment.debriefDistance,
+          gtv: assignment.gtv,
+        })),
+      );
+
+      syncActionResult(result);
+    });
+  }
+
+  function handleReset() {
+    if (!canEdit) {
+      setStatusMessage("Prenez la main sur la journee avant de la vider.");
+      return;
+    }
+
+    setAssignments((current) =>
+      current.map((assignment) => ({
+        ...assignment,
+        activity: null,
+        observations: "—",
+        briefAgence: "—",
+        briefDistance: "—",
+        debriefAgence: "—",
+        debriefDistance: "—",
+        gtv: "—",
+      })),
+    );
+    setStatusMessage("Journee videe localement. Enregistrez pour confirmer.");
+  }
+
+  function handleCreateActivity() {
+    startTransition(async () => {
+      const result = await createActivityDefinition(newActivity);
+      setStatusMessage(result.message);
+
+      if (result.ok) {
+        setNewActivity({
+          label: "",
+          color: "#3b82f6",
+          status: "Present",
+        });
+      }
+    });
+  }
+
+  function startActivityEdit(activity: ActivityOption) {
+    setEditingActivityId(activity.id);
+    setEditingActivity({
+      label: activity.label,
+      color: activity.color,
+      status: activity.status,
+    });
+  }
+
+  function cancelActivityEdit() {
+    setEditingActivityId(null);
+    setEditingActivity(null);
+  }
+
+  function handleUpdateActivity(activityId: string) {
+    if (!editingActivity) {
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await updateActivityDefinition({
+        id: activityId,
+        ...editingActivity,
+      });
+
+      setStatusMessage(result.message);
+
+      if (result.ok) {
+        cancelActivityEdit();
+      }
+    });
+  }
+
+  function handleDeleteActivity(activityId: string) {
+    startTransition(async () => {
+      const result = await deactivateActivityDefinition(activityId);
+      setStatusMessage(result.message);
+    });
+  }
+
+  function resetActivityFilters() {
+    setActivitySearch("");
+    cancelActivityEdit();
+  }
+
+  function applyHistoryFilters() {
+    setAppliedHistoryAgent(historyAgent);
+    setAppliedHistoryStartDate(historyStartDate);
+    setAppliedHistoryEndDate(historyEndDate);
+  }
+
+  function resetHistoryFilters() {
+    setHistoryAgent("all");
+    setAppliedHistoryAgent("all");
+    setHistoryStartDate("");
+    setHistoryEndDate("");
+    setAppliedHistoryStartDate("");
+    setAppliedHistoryEndDate("");
+  }
+
+  function navigateToDate(date: string) {
+    setCalendarOpen(false);
+    setVisibleMonth(startOfMonth(date));
+    startTransition(() => {
+      router.push(`/?date=${date}`);
+    });
+  }
+
+  return (
+    <main className="min-h-screen bg-[linear-gradient(135deg,#edf4fb_0%,#f6f8fc_45%,#eef3f8_100%)] px-4 py-4 text-slate-900 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1720px]">
+        <AppShellHeader
+          activeModule="support"
+          allowedModules={allowedModules}
+          isSuperAdmin={isSuperAdmin}
+          role={role}
+          subtitle="Module dedie au pilotage quotidien de l'equipe terrain."
+          title="Support Journee"
+          userEmail={userEmail}
+          weatherGeneratedAtLabel={headerWeather.generatedAtLabel}
+          weatherZones={headerWeather.zones}
+        />
+
+        <section className="mt-5 rounded-[30px] border border-white/80 bg-white/68 p-5 shadow-[0_26px_70px_rgba(148,163,184,0.16)] backdrop-blur sm:p-6 lg:p-8">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-blue-600">
+                Module Actif
+              </p>
+              <h2 className="mt-2 text-4xl font-semibold tracking-tight text-slate-950">
+                Pilotage Quotidien
+              </h2>
+              <p className="mt-3 max-w-[64ch] text-base leading-7 text-slate-500">
+                Cette page se concentre uniquement sur le support journee: saisie du brief,
+                parametrage des activites et consultation de l&apos;historique.
+              </p>
+            </div>
+
+            {activeTab === "brief" ? (
+              <div className="grid gap-3 sm:grid-cols-3">
+                {[
+                  `Presents: ${liveMetrics.presents}`,
+                  `Absents: ${liveMetrics.absents}`,
+                  `Greve: ${liveMetrics.greve}`,
+                ].map((item) => (
+                  <div
+                    key={item}
+                    className={cx(
+                      "rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-semibold shadow-sm",
+                      metricTone(item),
+                    )}
+                  >
+                    {item}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-2 rounded-[24px] border border-slate-200/80 bg-slate-50/80 p-2">
+            {supportTabs.map((tab) => (
+              <button
+                key={tab.id}
+                className={cx(
+                  "rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                  activeTab === tab.id
+                    ? "bg-blue-600 text-white shadow-[0_16px_32px_rgba(37,99,235,0.28)]"
+                    : "text-slate-500 hover:bg-white hover:text-slate-900",
+                )}
+                onClick={() => setActiveTab(tab.id)}
+                type="button"
+              >
+                <span className="mr-2">{tab.icon}</span>
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {activeTab === "brief" ? (
+            <div className="mt-6 space-y-5">
+              <section className="grid gap-4 rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+                <div>
+                  <div className="flex flex-wrap gap-2">
+                    {["J-1", "Auj.", "J+1"].map((item) => (
+                      <button
+                        key={item}
+                        className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm"
+                        onClick={() =>
+                          navigateToDate(
+                            item === "J-1"
+                              ? shiftDate(currentDayDate, -1)
+                              : item === "J+1"
+                                ? shiftDate(currentDayDate, 1)
+                                : new Date().toISOString().slice(0, 10),
+                          )
+                        }
+                        type="button"
+                      >
+                        {item}
+                      </button>
+                    ))}
+                    <div className="relative">
+                      <button
+                        className="flex min-w-[180px] items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-blue-300 hover:bg-white"
+                        onClick={() => setCalendarOpen((current) => !current)}
+                        type="button"
+                      >
+                        <span>{formatDateDisplay(currentDayDate)}</span>
+                        <span aria-hidden="true">📅</span>
+                      </button>
+
+                      {calendarOpen ? (
+                        <div className="absolute left-0 top-[calc(100%+8px)] z-20 w-[320px] rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_22px_60px_rgba(15,23,42,0.18)]">
+                          <div className="flex items-center justify-between">
+                            <button
+                              className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-700"
+                              onClick={() => setVisibleMonth((current) => shiftMonth(current, -1))}
+                              type="button"
+                            >
+                              ←
+                            </button>
+                            <p className="text-sm font-semibold capitalize text-slate-900">
+                              {formatCalendarHeader(visibleMonth)}
+                            </p>
+                            <button
+                              className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-700"
+                              onClick={() => setVisibleMonth((current) => shiftMonth(current, 1))}
+                              type="button"
+                            >
+                              →
+                            </button>
+                          </div>
+
+                          <div className="mt-4 grid grid-cols-7 gap-2 text-center text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                            {["L", "M", "M", "J", "V", "S", "D"].map((label, index) => (
+                              <div key={`${label}-${index}`}>{label}</div>
+                            ))}
+                          </div>
+
+                          <div className="mt-3 grid grid-cols-7 gap-2">
+                            {calendarDays.map((day) => {
+                              const isCurrentDay = day.iso === currentDayDate;
+                              const isKnownDay = availableDateMap.has(day.iso);
+                              const hasData = availableDateMap.get(day.iso) === true;
+
+                              return (
+                                <button
+                                  key={day.iso}
+                                  className={cx(
+                                    "relative flex h-10 items-center justify-center rounded-xl text-sm font-semibold transition",
+                                    day.inCurrentMonth
+                                      ? "text-slate-700 hover:bg-slate-100"
+                                      : "text-slate-300 hover:bg-slate-50",
+                                    isCurrentDay && "bg-blue-600 text-white hover:bg-blue-600",
+                                  )}
+                                  onClick={() => navigateToDate(day.iso)}
+                                  type="button"
+                                >
+                                  <span>{day.dayNumber}</span>
+                                  {isKnownDay ? (
+                                    <span
+                                      className={cx(
+                                        "absolute bottom-1 h-1.5 w-1.5 rounded-full",
+                                        isCurrentDay
+                                          ? "bg-white"
+                                          : hasData
+                                            ? "bg-emerald-500"
+                                            : "bg-rose-500",
+                                      )}
+                                    />
+                                  ) : null}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
+                            <span className="h-2 w-2 rounded-full bg-rose-500" />
+                            <span>Journee initialisee vide</span>
+                          </div>
+                          <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+                            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                            <span>Journee avec donnees</span>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <input
+                      className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none placeholder:text-slate-400 focus:border-blue-400 focus:bg-white"
+                      onChange={(event) => setSearchTerm(event.target.value)}
+                      placeholder="Rechercher agent, activite, observation..."
+                      value={searchTerm}
+                    />
+                    <select
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-400"
+                      onChange={(event) => setSelectedTechnician(event.target.value)}
+                      value={selectedTechnician}
+                    >
+                      <option value="all">Tous les techniciens</option>
+                      {technicians.map((technician) => (
+                        <option key={technician.id} value={technician.id}>
+                          {technician.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                      {supportSummary.weatherNote}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] bg-[linear-gradient(135deg,#eef4ff_0%,#f8fbff_100%)] p-5">
+                  <p className="text-3xl font-semibold uppercase tracking-tight text-blue-600">
+                    {supportSummary.dateLabel}
+                  </p>
+                  <p className="mt-2 text-sm text-slate-500">{supportSummary.weekLabel}</p>
+                  <div className="mt-4 space-y-2 text-sm text-slate-500">
+                    <p>Derniere modification : {lastUpdate}</p>
+                    <p>Statut edition : {editStatus}</p>
+                    <p>Verrou : {lockedBy ? `${lockedBy} (${formatLockTimestamp(lockedAt)})` : "Libre"}</p>
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-[26px] border border-slate-200/80 bg-[linear-gradient(135deg,#f7fbff_0%,#ffffff_100%)] p-4 shadow-sm sm:p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-950">Previsions meteo terrain</h3>
+                    <p className="mt-1 text-sm text-slate-500">{supportSummary.weatherNote}</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-4 xl:grid-cols-4">
+                  {dayWeather.length > 0 ? (
+                    dayWeather.map((zone) => (
+                      <article
+                        key={zone.id}
+                        className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-lg font-semibold text-slate-950">{zone.label}</p>
+                            <p className="mt-2 text-4xl font-semibold tracking-tight text-slate-950">
+                              {zone.minTempC ?? "—"}° / {zone.maxTempC ?? "—"}°
+                            </p>
+                          </div>
+                          <div className="text-3xl" title={zone.weatherLabel}>
+                            {zone.weatherIcon}
+                          </div>
+                        </div>
+
+                        <dl className="mt-4 space-y-2 text-sm">
+                          <div className="flex items-center justify-between gap-3">
+                            <dt className="text-slate-500">Prob. pluie</dt>
+                            <dd className="font-semibold text-slate-950">
+                              {zone.rainProbabilityPercent ?? "—"}%
+                            </dd>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <dt className="text-slate-500">Cumul pluie</dt>
+                            <dd className="font-semibold text-slate-950">
+                              {zone.precipitationMm ?? 0} mm
+                            </dd>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <dt className="text-slate-500">Heures humides</dt>
+                            <dd className="font-semibold text-slate-950">{zone.humidHours} h</dd>
+                          </div>
+                        </dl>
+
+                        <div
+                          className={cx(
+                            "mt-4 inline-flex rounded-full border px-3 py-1 text-xs font-semibold",
+                            rsfTone(zone.rsfLevel),
+                          )}
+                        >
+                          {zone.rsfLabel}
+                        </div>
+                      </article>
+                    ))
+                  ) : (
+                    <div className="rounded-[22px] border border-dashed border-slate-300 bg-white/80 px-4 py-8 text-sm text-slate-500 xl:col-span-4">
+                      Aucune donnee meteo detaillee disponible pour cette journee.
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <section className="flex flex-wrap items-center gap-3 rounded-[26px] border border-slate-200/80 bg-white p-4 shadow-sm">
+                <button
+                  className={cx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold shadow-sm transition",
+                    canTakeControl
+                      ? "border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:text-blue-700"
+                      : "border-slate-200 bg-slate-100 text-slate-400",
+                  )}
+                  disabled={!canTakeControl || isPending}
+                  onClick={handleTakeControl}
+                  type="button"
+                >
+                  {isLockedByCurrentUser ? "Prise en main active" : "Prendre la main"}
+                </button>
+                <button
+                  className={cx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold shadow-sm transition",
+                    canEdit
+                      ? "border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:text-blue-700"
+                      : "border-slate-200 bg-slate-100 text-slate-400",
+                  )}
+                  disabled={!canEdit || isPending}
+                  onClick={handleReleaseControl}
+                  type="button"
+                >
+                  Liberer la journee
+                </button>
+                <button
+                  className={cx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold shadow-sm transition",
+                    canEdit
+                      ? "border-blue-600 bg-blue-600 text-white"
+                      : "border-slate-200 bg-slate-100 text-slate-400",
+                  )}
+                  disabled={!canEdit || isPending}
+                  onClick={handleSave}
+                  type="button"
+                >
+                  {isPending ? "Enregistrement..." : "Enregistrer"}
+                </button>
+                <button
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-blue-300 hover:text-blue-700"
+                  type="button"
+                >
+                  Imprimer
+                </button>
+                <button
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-blue-300 hover:text-blue-700"
+                  type="button"
+                >
+                  CSV
+                </button>
+                <div className="ml-auto">
+                  <button
+                    className={cx(
+                      "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                      canEdit
+                        ? "border-rose-200 bg-rose-50 text-rose-500"
+                        : "border-slate-200 bg-slate-100 text-slate-400",
+                    )}
+                    disabled={!canEdit || isPending}
+                    onClick={handleReset}
+                    type="button"
+                  >
+                    Vider
+                  </button>
+                </div>
+              </section>
+
+              <section className="rounded-[24px] border border-blue-100 bg-blue-50/70 px-4 py-3 text-sm text-blue-800 shadow-sm">
+                <p>{statusMessage}</p>
+                {hasUnsavedChanges ? <p className="mt-1 text-blue-700">Des modifications locales sont en attente d&apos;enregistrement.</p> : null}
+              </section>
+
+              <section className="overflow-hidden rounded-[26px] border border-slate-200/80 bg-white shadow-sm">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full table-fixed text-sm">
+                    <colgroup>
+                      <col className="w-[52px]" />
+                      <col className="w-[16%]" />
+                      <col className="w-[8%]" />
+                      <col className="w-[15%]" />
+                      <col className="w-[16%]" />
+                      <col className="w-[8.5%]" />
+                      <col className="w-[8.5%]" />
+                      <col className="w-[8.5%]" />
+                      <col className="w-[8.5%]" />
+                      <col className="w-[7%]" />
+                    </colgroup>
+                    <thead>
+                      <tr className="bg-[linear-gradient(90deg,#2d63da_0%,#3567e7_100%)] text-white">
+                        {[
+                          "#",
+                          "Agent",
+                          "PTC-PTD",
+                          "Activite",
+                          "Observations",
+                          "Brief",
+                          "Brief",
+                          "Debrief",
+                          "Debrief",
+                          "GRV",
+                        ].map((heading, index) => (
+                          <th
+                            key={`${heading}-${index}`}
+                            className={cx(
+                              "px-3 py-4 text-center font-semibold",
+                              (index === 5 || index === 7 || index === 9) &&
+                                "border-l border-white/25",
+                              (index === 6 || index === 8 || index === 9) &&
+                                "border-r border-white/25",
+                            )}
+                          >
+                            {heading}
+                          </th>
+                        ))}
+                      </tr>
+                      <tr className="border-b border-slate-200 bg-blue-50 text-xs uppercase tracking-[0.18em] text-blue-700">
+                        <th className="px-3 py-3" />
+                        <th className="px-3 py-3" />
+                        <th className="px-3 py-3" />
+                        <th className="px-3 py-3" />
+                        <th className="px-3 py-3" />
+                        <th className="border-l border-blue-200 px-3 py-3 text-center">
+                          Agence
+                        </th>
+                        <th className="border-r border-blue-200 px-3 py-3 text-center">
+                          Distance
+                        </th>
+                        <th className="border-l border-blue-200 px-3 py-3 text-center">
+                          Agence
+                        </th>
+                        <th className="border-r border-blue-200 px-3 py-3 text-center">
+                          Distance
+                        </th>
+                        <th className="border-x border-blue-200 px-3 py-3 text-center" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredAssignments.map((assignment) => (
+                        <tr
+                          key={assignment.id}
+                          className="border-b border-slate-100 hover:bg-slate-50/70"
+                        >
+                          <td className="px-3 py-3 align-middle">
+                            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-xs font-semibold text-blue-700">
+                              {assignment.rank}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 font-semibold text-slate-900 align-middle">
+                            {assignment.agent}
+                          </td>
+                          <td className="px-3 py-3 text-center text-slate-600 align-middle">
+                            {assignment.workMode}
+                          </td>
+                          <td className="px-3 py-3 align-middle">
+                            {(() => {
+                              const selectedActivity = assignment.activity
+                                ? activityByLabel.get(assignment.activity)
+                                : undefined;
+
+                              return (
+                            <select
+                              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400 disabled:bg-slate-100 disabled:text-slate-400"
+                              disabled={!canEdit}
+                              onChange={(event) =>
+                                updateAssignment(
+                                  assignment.id,
+                                  "activity",
+                                  event.target.value || null,
+                                )
+                              }
+                              value={normalizeActivity(assignment.activity)}
+                              style={activitySelectStyle(selectedActivity)}
+                            >
+                              <option value="">—</option>
+                              {activityDefinitions.map((activity) => (
+                                <option key={activity.id} value={activity.label}>
+                                  {activity.label}
+                                </option>
+                              ))}
+                            </select>
+                              );
+                            })()}
+                          </td>
+                          <td className="px-3 py-3 align-middle">
+                            <input
+                              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 outline-none focus:border-blue-400 disabled:bg-slate-100 disabled:text-slate-400"
+                              disabled={!canEdit}
+                              onChange={(event) =>
+                                updateAssignment(
+                                  assignment.id,
+                                  "observations",
+                                  event.target.value,
+                                )
+                              }
+                              value={normalizeField(assignment.observations)}
+                            />
+                          </td>
+                          <td className="border-l border-blue-100 bg-blue-50/35 px-3 py-3 align-middle">
+                            <select
+                              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 disabled:bg-slate-100 disabled:text-slate-400"
+                              disabled={!canEdit}
+                              onChange={(event) =>
+                                updateAssignment(
+                                  assignment.id,
+                                  "briefAgence",
+                                  event.target.value,
+                                )
+                              }
+                              value={normalizeField(assignment.briefAgence)}
+                            >
+                              <option value="">—</option>
+                              <option value="OK">OK</option>
+                              <option value="A faire">A faire</option>
+                            </select>
+                          </td>
+                          <td className="border-r border-blue-100 bg-blue-50/35 px-3 py-3 align-middle">
+                            <select
+                              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 disabled:bg-slate-100 disabled:text-slate-400"
+                              disabled={!canEdit}
+                              onChange={(event) =>
+                                updateAssignment(
+                                  assignment.id,
+                                  "briefDistance",
+                                  event.target.value,
+                                )
+                              }
+                              value={normalizeField(assignment.briefDistance)}
+                            >
+                              <option value="">—</option>
+                              <option value="OK">OK</option>
+                              <option value="A faire">A faire</option>
+                            </select>
+                          </td>
+                          <td className="border-l border-emerald-100 bg-emerald-50/30 px-3 py-3 align-middle">
+                            <select
+                              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 disabled:bg-slate-100 disabled:text-slate-400"
+                              disabled={!canEdit}
+                              onChange={(event) =>
+                                updateAssignment(
+                                  assignment.id,
+                                  "debriefAgence",
+                                  event.target.value,
+                                )
+                              }
+                              value={normalizeField(assignment.debriefAgence)}
+                            >
+                              <option value="">—</option>
+                              <option value="OK">OK</option>
+                              <option value="A faire">A faire</option>
+                            </select>
+                          </td>
+                          <td className="border-r border-emerald-100 bg-emerald-50/30 px-3 py-3 align-middle">
+                            <select
+                              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 disabled:bg-slate-100 disabled:text-slate-400"
+                              disabled={!canEdit}
+                              onChange={(event) =>
+                                updateAssignment(
+                                  assignment.id,
+                                  "debriefDistance",
+                                  event.target.value,
+                                )
+                              }
+                              value={normalizeField(assignment.debriefDistance)}
+                            >
+                              <option value="">—</option>
+                              <option value="OK">OK</option>
+                              <option value="A faire">A faire</option>
+                            </select>
+                          </td>
+                          <td className="border-x border-amber-100 bg-amber-50/35 px-3 py-3 align-middle">
+                            <select
+                              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 disabled:bg-slate-100 disabled:text-slate-400"
+                              disabled={!canEdit}
+                              onChange={(event) =>
+                                updateAssignment(assignment.id, "gtv", event.target.value)
+                              }
+                              value={normalizeField(assignment.gtv)}
+                            >
+                              <option value="">—</option>
+                              <option value="Oui">Oui</option>
+                              <option value="Non">Non</option>
+                            </select>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+          ) : null}
+
+          {activeTab === "activities" ? (
+            <div className="mt-6 space-y-5">
+              <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                  <div>
+                    <h3 className="text-2xl font-semibold tracking-tight text-slate-950">
+                      Parametrage des activites
+                    </h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">
+                      Gere les couleurs, les statuts et les libelles qui serviront ensuite dans le
+                      tableau quotidien.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3">
+                    <input
+                      className="min-w-[220px] rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none placeholder:text-slate-400 focus:border-blue-400"
+                      onChange={(event) =>
+                        setNewActivity((current) => ({
+                          ...current,
+                          label: event.target.value,
+                        }))
+                      }
+                      placeholder="Nom nouvelle activite..."
+                      value={newActivity.label}
+                    />
+                    <label
+                      className="flex h-12 w-12 cursor-pointer items-center justify-center rounded-lg border border-slate-300 shadow-inner"
+                      style={{ backgroundColor: newActivity.color }}
+                    >
+                      <input
+                        className="sr-only"
+                        onChange={(event) =>
+                          setNewActivity((current) => ({
+                            ...current,
+                            color: event.target.value,
+                          }))
+                        }
+                        type="color"
+                        value={newActivity.color}
+                      />
+                    </label>
+                    <select
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-400"
+                      onChange={(event) =>
+                        setNewActivity((current) => ({
+                          ...current,
+                          status: event.target.value as ActivityStatusValue,
+                        }))
+                      }
+                      value={newActivity.status}
+                    >
+                      <option value="Present">Present</option>
+                      <option value="Absent">Absent</option>
+                      <option value="Greve">Greve</option>
+                    </select>
+                    <button
+                      className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(37,99,235,0.24)]"
+                      disabled={isPending}
+                      onClick={handleCreateActivity}
+                      type="button"
+                    >
+                      + Ajouter
+                    </button>
+                  </div>
+                </div>
+              </section>
+
+              <section className="flex flex-wrap gap-3">
+                <input
+                  className="min-w-[260px] flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none placeholder:text-slate-400 focus:border-blue-400"
+                  onChange={(event) => setActivitySearch(event.target.value)}
+                  placeholder="Rechercher activite..."
+                  value={activitySearch}
+                />
+                <button
+                  className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm"
+                  onClick={resetActivityFilters}
+                  type="button"
+                >
+                  Reinitialiser
+                </button>
+              </section>
+
+              <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+                {filteredActivities.map((activity) => (
+                  <article
+                    key={activity.id}
+                    className="rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-sm"
+                  >
+                    {editingActivityId === activity.id && editingActivity ? (
+                      <>
+                        <div className="space-y-3">
+                          <input
+                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-400"
+                            onChange={(event) =>
+                              setEditingActivity((current) =>
+                                current
+                                  ? { ...current, label: event.target.value }
+                                  : current,
+                              )
+                            }
+                            value={editingActivity.label}
+                          />
+                          <div className="flex items-center gap-3">
+                            <label
+                              className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg border border-slate-300 shadow-inner"
+                              style={{ backgroundColor: editingActivity.color }}
+                            >
+                              <input
+                                className="sr-only"
+                                onChange={(event) =>
+                                  setEditingActivity((current) =>
+                                    current
+                                      ? { ...current, color: event.target.value }
+                                      : current,
+                                  )
+                                }
+                                type="color"
+                                value={editingActivity.color}
+                              />
+                            </label>
+                            <select
+                              className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-400"
+                              onChange={(event) =>
+                                setEditingActivity((current) =>
+                                  current
+                                    ? {
+                                        ...current,
+                                        status: event.target.value as ActivityStatusValue,
+                                      }
+                                    : current,
+                                )
+                              }
+                              value={editingActivity.status}
+                            >
+                              <option value="Present">Present</option>
+                              <option value="Absent">Absent</option>
+                              <option value="Greve">Greve</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex gap-2">
+                          <button
+                            className="rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-700"
+                            onClick={() => handleUpdateActivity(activity.id)}
+                            type="button"
+                          >
+                            Enregistrer
+                          </button>
+                          <button
+                            className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700"
+                            onClick={cancelActivityEdit}
+                            type="button"
+                          >
+                            Annuler
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-start gap-3">
+                          <div
+                            className="h-6 w-10 rounded-sm border border-slate-400 shadow-inner"
+                            style={{ backgroundColor: activity.color }}
+                          />
+                          <div>
+                            <h3 className="text-base font-semibold text-slate-900">
+                              {activity.label}
+                            </h3>
+                            <span
+                              className={cx(
+                                "mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                                statusTone(activity.status),
+                              )}
+                            >
+                              {activity.status}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex gap-2">
+                          <button
+                            className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700"
+                            onClick={() => startActivityEdit(activity)}
+                            type="button"
+                          >
+                            Modifier
+                          </button>
+                          <button
+                            className="rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-600"
+                            onClick={() => handleDeleteActivity(activity.id)}
+                            type="button"
+                          >
+                            Supprimer
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </article>
+                ))}
+              </section>
+            </div>
+          ) : null}
+
+          {activeTab === "history" ? (
+            <div className="mt-6 space-y-5">
+              <section className="grid gap-4 xl:grid-cols-3">
+                {[
+                  { value: String(supportMetrics.totalDays), label: "Jours saisis" },
+                  { value: String(supportMetrics.totalRows), label: "Lignes totales" },
+                  { value: supportMetrics.topActivity, label: "Top activite" },
+                ].map((item) => (
+                  <article
+                    key={item.label}
+                    className="rounded-[24px] border border-slate-200/80 bg-white p-6 text-center shadow-sm"
+                  >
+                    <p className="text-4xl font-semibold tracking-tight text-blue-600">
+                      {item.value}
+                    </p>
+                    <p className="mt-2 text-sm uppercase tracking-[0.22em] text-slate-500">
+                      {item.label}
+                    </p>
+                  </article>
+                ))}
+              </section>
+
+              <section className="flex flex-wrap gap-3 rounded-[24px] border border-slate-200/80 bg-white p-4 shadow-sm">
+                <input
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm"
+                  onChange={(event) => setHistoryStartDate(event.target.value)}
+                  type="date"
+                  value={historyStartDate}
+                />
+                <input
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm"
+                  onChange={(event) => setHistoryEndDate(event.target.value)}
+                  type="date"
+                  value={historyEndDate}
+                />
+                <select
+                  className="min-w-[220px] rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-400"
+                  onChange={(event) => setHistoryAgent(event.target.value)}
+                  value={historyAgent}
+                >
+                  <option value="all">Tous agents</option>
+                  {technicians.map((technician) => (
+                    <option key={technician.id} value={technician.name}>
+                      {technician.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white"
+                  onClick={applyHistoryFilters}
+                  type="button"
+                >
+                  Filtrer
+                </button>
+                <button
+                  className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm"
+                  onClick={resetHistoryFilters}
+                  type="button"
+                >
+                  Reinitialiser
+                </button>
+              </section>
+
+              <section className="overflow-hidden rounded-[26px] border border-slate-200/80 bg-white shadow-sm">
+                <div className="max-h-[680px] overflow-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="sticky top-0 bg-slate-50 text-left text-slate-700">
+                      <tr>
+                        {["Date", "Agent", "Activite", "Obs", "Brief", "Debrief", "GRV"].map(
+                          (heading) => (
+                            <th key={heading} className="px-4 py-4 font-semibold">
+                              {heading}
+                            </th>
+                          ),
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredHistory.map((entry) => (
+                        <tr key={entry.id} className="border-t border-slate-100">
+                          <td className="px-4 py-3 text-slate-600">{entry.date}</td>
+                          <td className="px-4 py-3 font-semibold text-slate-900">{entry.agent}</td>
+                          <td className="px-4 py-3">
+                            <span className="rounded-md bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700">
+                              {entry.activity}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-500">
+                            {entry.observation || "—"}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">{entry.brief || "—"}</td>
+                          <td className="px-4 py-3 text-slate-600">{entry.debrief || "—"}</td>
+                          <td className="px-4 py-3 text-slate-600">{entry.grv || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+          ) : null}
+        </section>
+      </div>
+    </main>
+  );
+}

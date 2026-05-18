@@ -1,25 +1,24 @@
-import { SupportJourneeWorkspace } from "@/components/support-journee-workspace";
+import { BriefWorkspace } from "@/components/brief-workspace";
 import { getReadableOfficeModules, requireOfficeModule } from "@/lib/auth";
-import { getSupportJourneeData } from "@/lib/support-journee";
+import { getBtImportDayOverview } from "@/lib/bt-import-days";
 
-type HomeProps = {
+type BriefPageProps = {
   searchParams?: Promise<{
     date?: string;
   }>;
 };
 
-export default async function Home({ searchParams }: HomeProps) {
+export default async function BriefPage({ searchParams }: BriefPageProps) {
   const auth = await requireOfficeModule("support_journee");
   const allowedModules = getReadableOfficeModules(auth);
   const resolvedSearchParams = await searchParams;
-  const data = await getSupportJourneeData(resolvedSearchParams?.date);
+  const data = await getBtImportDayOverview(resolvedSearchParams?.date);
 
   return (
-    <SupportJourneeWorkspace
+    <BriefWorkspace
       allowedModules={allowedModules}
       data={data}
       isSuperAdmin={auth.role === "admin"}
-      key={data.supportSummary.dayId ?? data.supportSummary.dayDate ?? "support-journee"}
       role={auth.role ?? auth.officeAccount?.officeRole ?? null}
       userEmail={auth.user?.email ?? null}
     />
