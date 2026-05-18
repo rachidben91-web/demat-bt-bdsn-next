@@ -3,17 +3,19 @@ import { AppShellHeader } from "@/components/app-shell-header";
 import { AccessForm } from "@/app/admin/acces/access-form";
 import { getTechniciansEligibleForOfficeAccess } from "@/lib/admin-office-accounts";
 import { getReadableOfficeModules, requireOfficeModule } from "@/lib/auth";
+import { getModuleTheme } from "@/lib/module-theme";
 
 export default async function NewAdminAccessPage() {
+  const accessTheme = getModuleTheme("access");
   const auth = await requireOfficeModule("office_access");
   const allowedModules = getReadableOfficeModules(auth);
   const technicians = await getTechniciansEligibleForOfficeAccess();
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(135deg,#edf4fb_0%,#f6f8fc_45%,#eef3f8_100%)] px-4 py-4 text-slate-900 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1200px]">
+    <main className={`min-h-screen px-4 py-4 text-slate-900 sm:px-6 lg:px-8 ${accessTheme.pageBackgroundClassName}`}>
+      <div className="mx-auto max-w-[2360px]">
         <AppShellHeader
-          activeModule="referent"
+          activeModule="access"
           allowedModules={allowedModules}
           isSuperAdmin={auth.role === "admin"}
           role={auth.role ?? auth.officeAccount?.officeRole ?? null}

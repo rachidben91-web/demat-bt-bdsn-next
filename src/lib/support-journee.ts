@@ -213,7 +213,7 @@ function fallbackData(): SupportJourneeData {
     activityDefinitions: fallbackActivityDefinitions,
     dailyAssignments: fallbackDailyAssignments,
     headerWeather: {
-      generatedAtLabel: "Meteo indisponible",
+      generatedAtLabel: "Météo indisponible",
       zones: [],
     },
     dayWeather: [],
@@ -270,7 +270,7 @@ function buildEmptyAssignments(technicians: TechnicianOption[]): DailyAssignment
 export async function getSupportJourneeData(selectedDate?: string): Promise<SupportJourneeData> {
   const resolvedDate = selectedDate ?? new Date().toISOString().slice(0, 10);
   const weatherBundle = await getSupportWeatherBundle(resolvedDate).catch(() => ({
-    generatedAtLabel: "Meteo indisponible",
+    generatedAtLabel: "Météo indisponible",
     headerZones: [] as HeaderWeatherZone[],
     dayZones: [] as DayWeatherZone[],
     weatherNote: "Aucune prevision disponible.",

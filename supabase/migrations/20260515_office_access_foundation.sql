@@ -30,7 +30,17 @@ create unique index if not exists office_accounts_technician_id_unique
 create table if not exists public.office_module_access (
   id uuid primary key default gen_random_uuid(),
   office_account_id uuid not null references public.office_accounts(id) on delete cascade,
-  module_key text not null,
+  module_key text not null check (
+    module_key in (
+      'dashboard',
+      'support_journee',
+      'referent',
+      'brief',
+      'import_pdf',
+      'technicians_admin',
+      'office_access'
+    )
+  ),
   permission_level text not null check (
     permission_level in ('none', 'read', 'write')
   ),

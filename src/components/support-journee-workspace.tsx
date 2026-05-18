@@ -11,6 +11,7 @@ import {
   updateActivityDefinition,
 } from "@/app/actions/support-journee";
 import { AppShellHeader } from "@/components/app-shell-header";
+import { getModuleTheme } from "@/lib/module-theme";
 import { supportTabs } from "@/data/support-journee";
 import type { OfficeModuleKey } from "@/lib/office-access";
 import type {
@@ -212,6 +213,7 @@ export function SupportJourneeWorkspace({
   role,
   userEmail,
 }: SupportJourneeWorkspaceProps) {
+  const supportTheme = getModuleTheme("support");
   const {
     activityDefinitions,
     availableDates,
@@ -446,7 +448,7 @@ export function SupportJourneeWorkspace({
         gtv: "—",
       })),
     );
-    setStatusMessage("Journee videe localement. Enregistrez pour confirmer.");
+      setStatusMessage("Journée vidée localement. Enregistrez pour confirmer.");
   }
 
   function handleCreateActivity() {
@@ -528,20 +530,20 @@ export function SupportJourneeWorkspace({
     setCalendarOpen(false);
     setVisibleMonth(startOfMonth(date));
     startTransition(() => {
-      router.push(`/?date=${date}`);
+      router.push(`/support?date=${date}`);
     });
   }
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(135deg,#edf4fb_0%,#f6f8fc_45%,#eef3f8_100%)] px-4 py-4 text-slate-900 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1720px]">
+    <main className={cx("min-h-screen px-4 py-4 text-slate-900 sm:px-6 lg:px-8", supportTheme.pageBackgroundClassName)}>
+      <div className="mx-auto max-w-[2360px]">
         <AppShellHeader
           activeModule="support"
           allowedModules={allowedModules}
           isSuperAdmin={isSuperAdmin}
           role={role}
-          subtitle="Module dedie au pilotage quotidien de l'equipe terrain."
-          title="Support Journee"
+          subtitle="Module dédié au pilotage quotidien de l'équipe terrain."
+          title="Support Journée"
           userEmail={userEmail}
           weatherGeneratedAtLabel={headerWeather.generatedAtLabel}
           weatherZones={headerWeather.zones}
@@ -557,17 +559,17 @@ export function SupportJourneeWorkspace({
                 Pilotage Quotidien
               </h2>
               <p className="mt-3 max-w-[64ch] text-base leading-7 text-slate-500">
-                Cette page se concentre uniquement sur le support journee: saisie du brief,
-                parametrage des activites et consultation de l&apos;historique.
+                Cette page se concentre uniquement sur le support journée : saisie du brief,
+                paramétrage des activités et consultation de l&apos;historique.
               </p>
             </div>
 
             {activeTab === "brief" ? (
               <div className="grid gap-3 sm:grid-cols-3">
                 {[
-                  `Presents: ${liveMetrics.presents}`,
+                  `Présents: ${liveMetrics.presents}`,
                   `Absents: ${liveMetrics.absents}`,
-                  `Greve: ${liveMetrics.greve}`,
+                  `Grève: ${liveMetrics.greve}`,
                 ].map((item) => (
                   <div
                     key={item}
@@ -702,11 +704,11 @@ export function SupportJourneeWorkspace({
 
                           <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
                             <span className="h-2 w-2 rounded-full bg-rose-500" />
-                            <span>Journee initialisee vide</span>
+                            <span>Journée initialisée vide</span>
                           </div>
                           <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
                             <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                            <span>Journee avec donnees</span>
+                            <span>Journée avec données</span>
                           </div>
                         </div>
                       ) : null}
@@ -1115,7 +1117,7 @@ export function SupportJourneeWorkspace({
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                   <div>
                     <h3 className="text-2xl font-semibold tracking-tight text-slate-950">
-                      Parametrage des activites
+                      Paramétrage des activités
                     </h3>
                     <p className="mt-2 text-sm leading-6 text-slate-500">
                       Gere les couleurs, les statuts et les libelles qui serviront ensuite dans le

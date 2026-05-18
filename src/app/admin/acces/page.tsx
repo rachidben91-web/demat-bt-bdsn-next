@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AppShellHeader } from "@/components/app-shell-header";
 import { getOfficeAccounts } from "@/lib/admin-office-accounts";
 import { getReadableOfficeModules, requireOfficeModule } from "@/lib/auth";
+import { getModuleTheme } from "@/lib/module-theme";
 import {
   OFFICE_ACCOUNT_STATUS_LABELS,
   OFFICE_MODULE_KEYS,
@@ -54,15 +55,16 @@ function getReadableModuleLabels(
 }
 
 export default async function AdminAccessPage() {
+  const accessTheme = getModuleTheme("access");
   const auth = await requireOfficeModule("office_access");
   const allowedModules = getReadableOfficeModules(auth);
   const accounts = await getOfficeAccounts();
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(135deg,#edf4fb_0%,#f6f8fc_45%,#eef3f8_100%)] px-4 py-4 text-slate-900 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1720px]">
+    <main className={`min-h-screen px-4 py-4 text-slate-900 sm:px-6 lg:px-8 ${accessTheme.pageBackgroundClassName}`}>
+      <div className="mx-auto max-w-[2360px]">
         <AppShellHeader
-          activeModule="referent"
+          activeModule="access"
           allowedModules={allowedModules}
           isSuperAdmin={auth.role === "admin"}
           role={auth.role ?? auth.officeAccount?.officeRole ?? null}
@@ -78,7 +80,7 @@ export default async function AdminAccessPage() {
                 Module Admin
               </p>
               <h2 className="mt-2 text-4xl font-semibold tracking-tight text-slate-950">
-                Acces et permissions
+                Accès et permissions
               </h2>
               <p className="mt-3 max-w-[68ch] text-base leading-7 text-slate-500">
                 Liste des comptes relies aux referents, managers et futurs acces terrain.

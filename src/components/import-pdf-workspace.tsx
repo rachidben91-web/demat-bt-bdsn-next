@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { saveBtImportDayAction } from "@/app/actions/bt-import";
 import { AppShellHeader } from "@/components/app-shell-header";
+import { getModuleTheme } from "@/lib/module-theme";
 import { analyzePdfFile } from "@/lib/pdf-import/extractor";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import type { PdfImportAnalysis } from "@/lib/pdf-import/types";
@@ -67,6 +68,7 @@ export function ImportPdfWorkspace({
   role,
   userEmail,
 }: ImportPdfWorkspaceProps) {
+  const importTheme = getModuleTheme("import");
   const [analysis, setAnalysis] = useState<PdfImportAnalysis | null>(null);
   const [status, setStatus] = useState("Choisissez un PDF journalier pour lancer la reconnaissance DBT.");
   const [error, setError] = useState<string | null>(null);
@@ -145,8 +147,8 @@ export function ImportPdfWorkspace({
   }
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(135deg,#edf4fb_0%,#f6f8fc_45%,#eef3f8_100%)] px-4 py-4 text-slate-900 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1720px]">
+    <main className={cx("min-h-screen px-4 py-4 text-slate-900 sm:px-6 lg:px-8", importTheme.pageBackgroundClassName)}>
+      <div className="mx-auto max-w-[2360px]">
         <AppShellHeader
           activeModule="import"
           allowedModules={allowedModules}

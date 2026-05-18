@@ -17,9 +17,10 @@ export function LoginForm() {
           Email
         </label>
         <input
-          className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-400"
+          className="mt-2 w-full rounded-2xl border border-[#e8e1d8] bg-[#f7f3ee] px-4 py-3.5 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#d83a2f] focus:bg-white"
           id="email"
           name="email"
+          placeholder="prenom@dmt.vlg"
           type="email"
         />
       </div>
@@ -32,9 +33,10 @@ export function LoginForm() {
           Mot de passe
         </label>
         <input
-          className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-400"
+          className="mt-2 w-full rounded-2xl border border-[#e8e1d8] bg-[#f7f3ee] px-4 py-3.5 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#d83a2f] focus:bg-white"
           id="password"
           name="password"
+          placeholder="Mot de passe"
           type="password"
         />
       </div>
@@ -46,12 +48,14 @@ export function LoginForm() {
       ) : null}
 
       <button
-        className="w-full rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_32px_rgba(37,99,235,0.28)] transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
+        className="w-full rounded-2xl bg-[#d83a2f] px-5 py-3.5 text-sm font-semibold text-white shadow-[0_18px_32px_rgba(216,58,47,0.24)] transition hover:bg-[#c23126] disabled:cursor-not-allowed disabled:opacity-70"
         disabled={pending}
         type="submit"
       >
         {pending ? "Connexion..." : "Se connecter"}
       </button>
+
+      <p className="text-center text-sm text-slate-400">Mot de passe oublié ?</p>
     </form>
   );
 }

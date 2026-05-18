@@ -23,7 +23,11 @@ export const OFFICE_PERMISSION_LEVELS = [
 ] as const;
 
 export const OFFICE_MODULE_KEYS = [
+  "dashboard",
   "support_journee",
+  "referent",
+  "brief",
+  "import_pdf",
   "technicians_admin",
   "office_access",
 ] as const;
@@ -32,16 +36,32 @@ export const OFFICE_MODULE_META: Record<
   OfficeModuleKey,
   { label: string; description: string }
 > = {
+  dashboard: {
+    label: "Dashboard",
+    description: "Accueil bureau et point d'entree vers les modules disponibles.",
+  },
   support_journee: {
-    label: "Support Journee",
-    description: "Pilotage quotidien de l'equipe terrain.",
+    label: "Support Journée",
+    description: "Pilotage quotidien de l'équipe terrain.",
+  },
+  referent: {
+    label: "Référent",
+    description: "Dispatch, affectation et préparation de l'envoi mobile.",
+  },
+  brief: {
+    label: "Brief",
+    description: "Lecture détaillée des BT, risques et documents d'origine.",
+  },
+  import_pdf: {
+    label: "Import PDF",
+    description: "Chargement du PDF journalier et préparation des BT du jour.",
   },
   technicians_admin: {
     label: "Techniciens",
-    description: "Referentiel techniciens, managers et attributs metier.",
+    description: "Référentiel techniciens, managers et attributs métier.",
   },
   office_access: {
-    label: "Acces",
+    label: "Accès",
     description: "Comptes bureau, droits et liaison au terrain.",
   },
 };
@@ -97,7 +117,7 @@ export type OfficeModuleAccessRow = {
 export const OFFICE_ROLE_LABELS: Record<OfficeRole, string> = {
   admin: "Administrateur",
   manager: "Manager",
-  team_lead: "Referent d'equipe",
+  team_lead: "Référent d'équipe",
   viewer: "Lecture seule",
 };
 
@@ -138,7 +158,11 @@ export function isOfficeModuleKey(value: string | null | undefined): value is Of
 
 export function createEmptyOfficeModulePermissions(): OfficeModulePermissions {
   return {
+    dashboard: "none",
     support_journee: "none",
+    referent: "none",
+    brief: "none",
+    import_pdf: "none",
     technicians_admin: "none",
     office_access: "none",
   };
@@ -149,7 +173,11 @@ export function createRolePresetPermissions(
 ): OfficeModulePermissions {
   if (role === "admin" || role === "manager") {
     return {
+      dashboard: "write",
       support_journee: "write",
+      referent: "write",
+      brief: "write",
+      import_pdf: "write",
       technicians_admin: "write",
       office_access: "write",
     };
@@ -157,7 +185,11 @@ export function createRolePresetPermissions(
 
   if (role === "team_lead") {
     return {
+      dashboard: "read",
       support_journee: "write",
+      referent: "write",
+      brief: "read",
+      import_pdf: "none",
       technicians_admin: "read",
       office_access: "none",
     };
@@ -165,7 +197,11 @@ export function createRolePresetPermissions(
 
   if (role === "viewer") {
     return {
+      dashboard: "read",
       support_journee: "read",
+      referent: "read",
+      brief: "read",
+      import_pdf: "none",
       technicians_admin: "read",
       office_access: "none",
     };
@@ -178,10 +214,30 @@ export function normalizeOfficeModulePermissions(
   input: Partial<Record<string, string | null | undefined>>,
 ): OfficeModulePermissions {
   const normalized = createEmptyOfficeModulePermissions();
+  const legacySupportPermission = isOfficePermissionLevel(input.support_journee)
+    ? input.support_journee
+    : "none";
 
   for (const moduleKey of OFFICE_MODULE_KEYS) {
     const value = input[moduleKey];
-    normalized[moduleKey] = isOfficePermissionLevel(value) ? value : "none";
+
+    if (isOfficePermissionLevel(value)) {
+      normalized[moduleKey] = value;
+      continue;
+    }
+
+    if (
+      (moduleKey === "dashboard" ||
+        moduleKey === "referent" ||
+        moduleKey === "brief" ||
+        moduleKey === "import_pdf") &&
+      legacySupportPermission !== "none"
+    ) {
+      normalized[moduleKey] = legacySupportPermission;
+      continue;
+    }
+
+    normalized[moduleKey] = "none";
   }
 
   return normalized;

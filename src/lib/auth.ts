@@ -11,6 +11,26 @@ import {
 } from "@/lib/office-access";
 import { redirect } from "next/navigation";
 
+const READABLE_OFFICE_MODULES_IN_ORDER = [
+  "dashboard",
+  "support_journee",
+  "referent",
+  "brief",
+  "import_pdf",
+  "technicians_admin",
+  "office_access",
+] as const satisfies readonly OfficeModuleKey[];
+
+const OFFICE_MODULE_DEFAULT_PATHS: Record<OfficeModuleKey, string> = {
+  dashboard: "/",
+  support_journee: "/support",
+  referent: "/referent",
+  brief: "/brief",
+  import_pdf: "/import-pdf",
+  technicians_admin: "/admin/techniciens",
+  office_access: "/admin/acces",
+};
+
 export type AuthUserRole = "admin" | "manager" | "agent" | null;
 
 export type CurrentOfficeAccount = {
@@ -126,6 +146,36 @@ export async function requireAdmin() {
   return auth;
 }
 
+export async function requireAnyOfficeAccess() {
+  const auth = await getCurrentAuthContext();
+
+  if (auth.configured && !auth.user) {
+    redirect("/login");
+  }
+
+  if (!auth.configured) {
+    return auth;
+  }
+
+  if (auth.role === "admin") {
+    return auth;
+  }
+
+  if (auth.officeAccount?.canAccessOfficeApp && !auth.officeAccount.passwordChanged) {
+    redirect("/change-password");
+  }
+
+  if (
+    !auth.officeAccount ||
+    auth.officeAccount.accountStatus !== "active" ||
+    !auth.officeAccount.canAccessOfficeApp
+  ) {
+    redirect("/login");
+  }
+
+  return auth;
+}
+
 export async function requireOfficeModule(moduleKey: OfficeModuleKey) {
   const auth = await getCurrentAuthContext();
 
@@ -192,14 +242,27 @@ export function getReadableOfficeModules(
   auth: Awaited<ReturnType<typeof getCurrentAuthContext>>,
 ): OfficeModuleKey[] {
   if (auth.role === "admin") {
-    return ["support_journee", "technicians_admin", "office_access"];
+    return [...READABLE_OFFICE_MODULES_IN_ORDER];
   }
 
   if (!auth.officeAccount || !auth.officeAccount.canAccessOfficeApp) {
     return [];
   }
 
-  return (["support_journee", "technicians_admin", "office_access"] as const).filter((moduleKey) =>
+  return READABLE_OFFICE_MODULES_IN_ORDER.filter((moduleKey) =>
     canReadOfficeModule(auth.officeAccount!.modulePermissions, moduleKey),
   );
+}
+
+export function getDefaultOfficePath(
+  auth: Awaited<ReturnType<typeof getCurrentAuthContext>>,
+): string | null {
+  if (auth.role === "admin") {
+    return "/";
+  }
+
+  const readableModules = getReadableOfficeModules(auth);
+  const firstModule = readableModules[0];
+
+  return firstModule ? OFFICE_MODULE_DEFAULT_PATHS[firstModule] : null;
 }

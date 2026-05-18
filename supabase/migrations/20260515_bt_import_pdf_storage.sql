@@ -14,8 +14,9 @@ where not exists (
   select 1 from storage.buckets where id = 'bt-import-pdfs'
 );
 
+drop policy if exists "bt import pdfs read for office module users" on storage.objects;
 drop policy if exists "bt import pdfs read for support users" on storage.objects;
-create policy "bt import pdfs read for support users"
+create policy "bt import pdfs read for office module users"
 on storage.objects
 for select
 to authenticated
@@ -36,14 +37,15 @@ using (
       where office_accounts.auth_user_id = auth.uid()
         and office_accounts.account_status = 'active'
         and office_accounts.can_access_office_app = true
-        and office_module_access.module_key = 'support_journee'
+        and office_module_access.module_key in ('support_journee', 'referent', 'brief', 'import_pdf')
         and office_module_access.permission_level in ('read', 'write')
     )
   )
 );
 
+drop policy if exists "bt import pdfs write for office module users" on storage.objects;
 drop policy if exists "bt import pdfs write for support users" on storage.objects;
-create policy "bt import pdfs write for support users"
+create policy "bt import pdfs write for office module users"
 on storage.objects
 for all
 to authenticated
@@ -64,7 +66,7 @@ using (
       where office_accounts.auth_user_id = auth.uid()
         and office_accounts.account_status = 'active'
         and office_accounts.can_access_office_app = true
-        and office_module_access.module_key = 'support_journee'
+        and office_module_access.module_key = 'import_pdf'
         and office_module_access.permission_level = 'write'
     )
   )
@@ -86,7 +88,7 @@ with check (
       where office_accounts.auth_user_id = auth.uid()
         and office_accounts.account_status = 'active'
         and office_accounts.can_access_office_app = true
-        and office_module_access.module_key = 'support_journee'
+        and office_module_access.module_key = 'import_pdf'
         and office_module_access.permission_level = 'write'
     )
   )

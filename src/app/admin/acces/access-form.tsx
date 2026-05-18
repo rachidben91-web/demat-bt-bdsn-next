@@ -12,6 +12,7 @@ import type {
   TechnicianAccessCandidate,
 } from "@/lib/admin-office-accounts";
 import {
+  createRolePresetPermissions,
   OFFICE_ACCOUNT_STATUS_LABELS,
   OFFICE_ACCOUNT_STATUS_OPTIONS,
   OFFICE_MODULE_KEYS,
@@ -45,6 +46,8 @@ export function AccessForm({
   mode = "create",
   technicians,
 }: AccessFormProps) {
+  const defaultModulePermissions =
+    account?.modulePermissions ?? createRolePresetPermissions(account?.officeRole ?? "team_lead");
   const [state, formAction, pending] = useActionState(
     mode === "create" ? createOfficeAccessAction : updateOfficeAccessAction,
     initialCreateOfficeAccessFormState,
@@ -151,7 +154,7 @@ export function AccessForm({
             name="can_access_office_app"
             type="checkbox"
           />
-          Acces bureau
+          Accès bureau
         </label>
         <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
           <input
@@ -159,7 +162,7 @@ export function AccessForm({
             name="can_access_terrain_app"
             type="checkbox"
           />
-          Acces terrain
+          Accès terrain
         </label>
       </div>
 
@@ -186,8 +189,7 @@ export function AccessForm({
               <select
                 className={fieldClassName()}
                 defaultValue={
-                  account?.modulePermissions[moduleKey] ??
-                  (moduleKey === "support_journee" ? "read" : "none")
+                  defaultModulePermissions[moduleKey]
                 }
                 name={`permission_${moduleKey}`}
               >

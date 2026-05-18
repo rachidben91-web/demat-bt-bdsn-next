@@ -3,15 +3,17 @@ import { createTechnicianAction } from "@/app/admin/techniciens/actions";
 import { TechnicianForm } from "@/app/admin/techniciens/technician-form";
 import { getManagerOptions } from "@/lib/admin-technicians";
 import { getReadableOfficeModules, requireOfficeModule } from "@/lib/auth";
+import { getModuleTheme } from "@/lib/module-theme";
 
 export default async function NewTechnicianPage() {
+  const adminTheme = getModuleTheme("admin");
   const auth = await requireOfficeModule("technicians_admin");
   const allowedModules = getReadableOfficeModules(auth);
   const managers = await getManagerOptions();
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(135deg,#edf4fb_0%,#f6f8fc_45%,#eef3f8_100%)] px-4 py-4 text-slate-900 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1720px]">
+    <main className={`min-h-screen px-4 py-4 text-slate-900 sm:px-6 lg:px-8 ${adminTheme.pageBackgroundClassName}`}>
+      <div className="mx-auto max-w-[2360px]">
         <AppShellHeader
           activeModule="admin"
           allowedModules={allowedModules}
@@ -32,7 +34,7 @@ export default async function NewTechnicianPage() {
             </h2>
             <p className="mt-3 max-w-[64ch] text-base leading-7 text-slate-500">
               Renseigne le manager, le NNI, les attributs PTC/PTD et l&apos;ordre
-              d&apos;affichage pour rendre le technicien disponible dans Support Journee.
+              d&apos;affichage pour rendre le technicien disponible dans Support Journée.
             </p>
           </div>
 

@@ -22,7 +22,7 @@ export async function saveBtImportDayAction(
   sourcePdfStoragePath?: string | null,
 ): Promise<SaveBtImportResult> {
   try {
-    const auth = await requireOfficeWriteModule("support_journee");
+    const auth = await requireOfficeWriteModule("import_pdf");
 
     if (!isSupabaseConfigured()) {
       return {

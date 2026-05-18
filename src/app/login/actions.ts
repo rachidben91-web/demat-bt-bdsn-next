@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { getCurrentAuthContext } from "@/lib/auth";
+import { getCurrentAuthContext, getDefaultOfficePath } from "@/lib/auth";
 
 export type LoginFormState = {
   error: string | null;
@@ -39,7 +39,7 @@ export async function loginAction(
     redirect("/change-password");
   }
 
-  redirect("/");
+  redirect(getDefaultOfficePath(auth) ?? "/");
 }
 
 export async function logoutAction() {

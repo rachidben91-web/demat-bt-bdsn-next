@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { AppShellHeader } from "@/components/app-shell-header";
 import type { BtImportDayOverview } from "@/lib/bt-import-days";
+import { getModuleTheme } from "@/lib/module-theme";
 import { detectBtCategory, detectPrimaryBadge, getBtCategoryOrder } from "@/lib/pdf-import/badges";
 import { openPdfDocumentFromUrl } from "@/lib/pdf-import/pdf-viewer";
 import type { ExtractedBt } from "@/lib/pdf-import/types";
@@ -22,6 +23,11 @@ type BriefWorkspaceProps = {
 type ViewerState = {
   bt: ExtractedBt;
   currentPage: number;
+};
+
+type ViewerViewportSize = {
+  height: number;
+  width: number;
 };
 
 type ViewMode = "large" | "compact";
@@ -73,7 +79,7 @@ function getTeamGroupSummary(bt: ExtractedBt) {
     return {
       key: "SANS_EQUIPE",
       label: "Sans affectation",
-      secondaryLabel: "Aucune equipe detectee",
+      secondaryLabel: "Aucune équipe détectée",
     };
   }
 
@@ -84,7 +90,7 @@ function getTeamGroupSummary(bt: ExtractedBt) {
   return {
     key: members.map((member) => member.key).join("|"),
     label,
-    secondaryLabel: `${members.length} technicien(s) dans cette equipe`,
+    secondaryLabel: `${members.length} technicien(s) dans cette équipe`,
   };
 }
 
@@ -143,6 +149,7 @@ export function BriefWorkspace({
   role,
   userEmail,
 }: BriefWorkspaceProps) {
+  const briefTheme = getModuleTheme("brief");
   const { bts, currentDay, days } = data;
   const [query, setQuery] = useState("");
   const [selectedTechnician, setSelectedTechnician] = useState("all");
@@ -153,8 +160,24 @@ export function BriefWorkspace({
   const [pdfDocument, setPdfDocument] = useState<PDFDocumentProxy | null>(null);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [viewerError, setViewerError] = useState<string | null>(null);
+  const [viewerZoom, setViewerZoom] = useState(1);
+  const [viewportWidth, setViewportWidth] = useState(0);
+  const [viewerViewportSize, setViewerViewportSize] = useState<ViewerViewportSize>({
+    width: 0,
+    height: 0,
+  });
+  const [viewerPageOrientation, setViewerPageOrientation] = useState<"portrait" | "landscape">("portrait");
   const [viewerLoading, startViewerTransition] = useTransition();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const viewerViewportRef = useRef<HTMLDivElement | null>(null);
+  const viewerPanSessionRef = useRef<{
+    originX: number;
+    originY: number;
+    scrollLeft: number;
+    scrollTop: number;
+  } | null>(null);
+  const viewerRenderTaskRef = useRef<{ cancel: () => void } | null>(null);
+  const [isViewerPanning, setIsViewerPanning] = useState(false);
   const hasManualViewModeRef = useRef(false);
 
   const technicianOptions = useMemo(
@@ -247,22 +270,31 @@ export function BriefWorkspace({
   const currentViewerDoc = viewerState?.bt.docs.find((doc) => doc.page === viewerState.currentPage) ?? null;
   const isCompactView = viewMode === "compact";
   const isCategoryLayout = layoutMode === "category";
-  const groupsGridClassName =
-    isCategoryLayout
-      ? "grid-cols-1"
-      : viewMode === "compact"
-        ? "columns-1 md:columns-2 min-[1500px]:columns-3 min-[2100px]:columns-4 [column-gap:1rem]"
-        : "columns-1 min-[1200px]:columns-2 min-[1800px]:columns-3 [column-gap:1rem]";
   const emptyStateSpanClassName =
     isCategoryLayout
       ? "col-span-1"
-      : viewMode === "compact"
-      ? "min-[760px]:col-span-2 min-[1380px]:col-span-3 min-[1880px]:col-span-4 min-[2360px]:col-span-5"
-      : "min-[900px]:col-span-2 min-[1750px]:col-span-3 min-[2250px]:col-span-4";
+      : "col-span-1 min-[900px]:col-span-2 min-[1280px]:col-span-3 min-[1700px]:col-span-4";
+
+  const desktopGridColumns = useMemo(() => {
+    if (viewportWidth >= 1700) {
+      return 4;
+    }
+
+    if (viewportWidth >= 1280) {
+      return 3;
+    }
+
+    if (viewportWidth >= 900) {
+      return 2;
+    }
+
+    return 1;
+  }, [viewportWidth]);
 
   useEffect(() => {
     function syncResponsivePreferences() {
       const profile = getScreenProfile(window.innerWidth);
+      setViewportWidth(window.innerWidth);
 
       if (!hasManualViewModeRef.current) {
         setViewMode(getAutoViewMode(profile));
@@ -323,16 +355,81 @@ export function BriefWorkspace({
   }, [viewerState, currentDay?.sourcePdfStoragePath]);
 
   useEffect(() => {
+    if (!viewerState) {
+      return;
+    }
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [viewerState]);
+
+  useEffect(() => {
+    if (!viewerState || !viewerViewportRef.current || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const element = viewerViewportRef.current;
+    const resizeObserver = new ResizeObserver((entries) => {
+      const nextEntry = entries[0];
+
+      if (!nextEntry) {
+        return;
+      }
+
+      setViewerViewportSize({
+        width: nextEntry.contentRect.width,
+        height: nextEntry.contentRect.height,
+      });
+    });
+
+    resizeObserver.observe(element);
+
+    setViewerViewportSize({
+      width: element.clientWidth,
+      height: element.clientHeight,
+    });
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [viewerState]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function renderCurrentPage() {
-      if (!viewerState || !pdfDocument || !canvasRef.current) {
+      const measuredWidth =
+        viewerViewportSize.width ||
+        viewerViewportRef.current?.clientWidth ||
+        viewerViewportRef.current?.getBoundingClientRect().width ||
+        0;
+      const measuredHeight =
+        viewerViewportSize.height ||
+        viewerViewportRef.current?.clientHeight ||
+        viewerViewportRef.current?.getBoundingClientRect().height ||
+        0;
+
+      if (
+        !viewerState ||
+        !pdfDocument ||
+        !canvasRef.current ||
+        measuredWidth <= 0 ||
+        measuredHeight <= 0
+      ) {
         return;
       }
 
       try {
         const page = await pdfDocument.getPage(viewerState.currentPage);
-        const viewport = page.getViewport({ scale: 1.65 });
+        const pageViewport = page.getViewport({ scale: 1 });
         const canvas = canvasRef.current;
 
         if (!canvas) {
@@ -345,21 +442,60 @@ export function BriefWorkspace({
           return;
         }
 
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
+        const horizontalPadding = 32;
+        const verticalPadding = 40;
+        const availableWidth = Math.max(220, measuredWidth - horizontalPadding);
+        const availableHeight = Math.max(220, measuredHeight - verticalPadding);
+        const fitScale = Math.min(
+          availableWidth / pageViewport.width,
+          availableHeight / pageViewport.height,
+        );
+        const effectiveScale = Math.max(0.2, fitScale) * viewerZoom;
+        const viewport = page.getViewport({ scale: effectiveScale });
+        const devicePixelRatio = window.devicePixelRatio || 1;
+
+        setViewerPageOrientation(pageViewport.width >= pageViewport.height ? "landscape" : "portrait");
+
+        canvas.style.width = `${viewport.width}px`;
+        canvas.style.height = `${viewport.height}px`;
+        canvas.width = Math.floor(viewport.width * devicePixelRatio);
+        canvas.height = Math.floor(viewport.height * devicePixelRatio);
+        context.setTransform(1, 0, 0, 1, 0, 0);
+        context.clearRect(0, 0, canvas.width, canvas.height);
+
+        viewerRenderTaskRef.current?.cancel();
 
         const renderTask = page.render({
           canvas,
           canvasContext: context,
+          transform: devicePixelRatio === 1 ? undefined : [devicePixelRatio, 0, 0, devicePixelRatio, 0, 0],
           viewport,
         });
+        viewerRenderTaskRef.current = renderTask;
 
         await renderTask.promise;
+
+        if (viewerRenderTaskRef.current === renderTask) {
+          viewerRenderTaskRef.current = null;
+        }
 
         if (cancelled) {
           return;
         }
       } catch (caughtError) {
+        if (viewerRenderTaskRef.current) {
+          viewerRenderTaskRef.current = null;
+        }
+
+        if (
+          caughtError &&
+          typeof caughtError === "object" &&
+          "name" in caughtError &&
+          caughtError.name === "RenderingCancelledException"
+        ) {
+          return;
+        }
+
         if (!cancelled) {
           setViewerError(caughtError instanceof Error ? caughtError.message : "Rendu PDF impossible.");
         }
@@ -370,8 +506,10 @@ export function BriefWorkspace({
 
     return () => {
       cancelled = true;
+      viewerRenderTaskRef.current?.cancel();
+      viewerRenderTaskRef.current = null;
     };
-  }, [viewerState, pdfDocument]);
+  }, [viewerState, pdfDocument, viewerViewportSize, viewerZoom]);
 
   function openViewer(bt: ExtractedBt, page: number) {
     if (!currentDay?.sourcePdfStoragePath) {
@@ -384,6 +522,8 @@ export function BriefWorkspace({
     setViewerError(null);
 
     startViewerTransition(() => {
+      setViewerZoom(1);
+      setIsViewerPanning(false);
       setViewerState({
         bt,
         currentPage: page,
@@ -392,6 +532,10 @@ export function BriefWorkspace({
   }
 
   function closeViewer() {
+    viewerRenderTaskRef.current?.cancel();
+    viewerRenderTaskRef.current = null;
+    setViewerZoom(1);
+    setIsViewerPanning(false);
     setViewerState(null);
     setPdfDocument(null);
     setSignedUrl(null);
@@ -428,6 +572,57 @@ export function BriefWorkspace({
     }
   }
 
+  function changeViewerZoom(direction: "in" | "out") {
+    setViewerZoom((current) => {
+      const nextValue = direction === "in" ? current + 0.2 : current - 0.2;
+      return Math.min(3, Math.max(0.6, Number(nextValue.toFixed(2))));
+    });
+  }
+
+  function resetViewerZoom() {
+    setViewerZoom(1);
+
+    if (viewerViewportRef.current) {
+      viewerViewportRef.current.scrollTo({ left: 0, top: 0, behavior: "smooth" });
+    }
+  }
+
+  function handleViewerPointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    if (!viewerViewportRef.current || viewerZoom <= 1) {
+      return;
+    }
+
+    viewerPanSessionRef.current = {
+      originX: event.clientX,
+      originY: event.clientY,
+      scrollLeft: viewerViewportRef.current.scrollLeft,
+      scrollTop: viewerViewportRef.current.scrollTop,
+    };
+    setIsViewerPanning(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handleViewerPointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    if (!viewerViewportRef.current || !viewerPanSessionRef.current) {
+      return;
+    }
+
+    const deltaX = event.clientX - viewerPanSessionRef.current.originX;
+    const deltaY = event.clientY - viewerPanSessionRef.current.originY;
+
+    viewerViewportRef.current.scrollLeft = viewerPanSessionRef.current.scrollLeft - deltaX;
+    viewerViewportRef.current.scrollTop = viewerPanSessionRef.current.scrollTop - deltaY;
+  }
+
+  function handleViewerPointerUp(event: React.PointerEvent<HTMLDivElement>) {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    viewerPanSessionRef.current = null;
+    setIsViewerPanning(false);
+  }
+
   function handleViewModeChange(nextMode: ViewMode) {
     hasManualViewModeRef.current = true;
     setViewMode(nextMode);
@@ -449,14 +644,14 @@ export function BriefWorkspace({
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#ffffff_0%,#eef4fb_42%,#e7edf6_100%)] px-3 py-3 text-slate-900 sm:px-5 sm:py-4 lg:px-6 xl:px-8">
+    <main className={cx("min-h-screen px-3 py-3 text-slate-900 sm:px-5 sm:py-4 lg:px-6 xl:px-8", briefTheme.pageBackgroundClassName)}>
       <div className="mx-auto max-w-[2360px]">
         <AppShellHeader
           activeModule="brief"
           allowedModules={allowedModules}
           isSuperAdmin={isSuperAdmin}
           role={role}
-          subtitle="Vue referent enrichie : regroupement, pastilles metier, documents d'origine et navigation par equipe."
+          subtitle="Vue référent enrichie : regroupement, pastilles métier, documents d'origine et navigation par équipe."
           title="Brief"
           userEmail={userEmail}
         />
@@ -470,7 +665,7 @@ export function BriefWorkspace({
                     Jour actif
                   </p>
                   <h2 className="mt-2 text-[1.85rem] font-semibold tracking-tight text-slate-950">
-                    {currentDay ? formatDayLabel(currentDay.dayDate) : "Aucune journee"}
+                    {currentDay ? formatDayLabel(currentDay.dayDate) : "Aucune journée"}
                   </h2>
                 </div>
 
@@ -512,7 +707,7 @@ export function BriefWorkspace({
                   <input
                     className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none placeholder:text-slate-400 focus:border-blue-400 focus:bg-white"
                     onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Rechercher un BT, client, adresse, equipe..."
+                    placeholder="Rechercher un BT, client, adresse, équipe..."
                     value={query}
                   />
                   <select
@@ -571,19 +766,16 @@ export function BriefWorkspace({
 
             <div className="space-y-4 lg:space-y-5">
               <section
-                className={cx(
-                  isCategoryLayout ? "grid gap-5" : "space-y-0",
-                  groupsGridClassName,
-                )}
+                className={cx(isCategoryLayout ? "grid gap-5" : "space-y-4")}
               >
                 {groupedBts.length > 0 ? (
-                  groupedBts.map((group) => (
+                  isCategoryLayout ? (
+                    groupedBts.map((group) => (
                     <article
                       key={group.key}
                       className={cx(
                         "rounded-[24px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-3 shadow-[0_18px_40px_rgba(148,163,184,0.12)] sm:p-4",
                         isCategoryLayout && "px-4 py-4 sm:px-5 sm:py-5",
-                        !isCategoryLayout && "mb-4 inline-block w-full break-inside-avoid",
                       )}
                     >
                       <button
@@ -630,9 +822,7 @@ export function BriefWorkspace({
                       <div
                         className={cx(
                           isCategoryLayout && collapsedGroups[group.key] ? "hidden" : "",
-                          isCategoryLayout
-                            ? "grid gap-3 sm:grid-cols-2 min-[1280px]:grid-cols-3 min-[1800px]:grid-cols-4"
-                            : "space-y-3 sm:space-y-4",
+                          "grid gap-3 sm:grid-cols-2 min-[1280px]:grid-cols-3 min-[1800px]:grid-cols-4",
                         )}
                       >
                         {group.entries.map((bt) => {
@@ -777,7 +967,7 @@ export function BriefWorkspace({
                                             ) : null}
                                           </>
                                         ) : (
-                                          <span className="text-sm text-slate-500">Aucune equipe detectee</span>
+                                          <span className="text-sm text-slate-500">Aucune équipe détectée</span>
                                         )}
                                       </div>
                                     </div>
@@ -860,6 +1050,232 @@ export function BriefWorkspace({
                       </div>
                     </article>
                   ))
+                  ) : (
+                    <div
+                      className="grid auto-rows-max gap-4"
+                      style={{
+                        gridAutoFlow: desktopGridColumns > 1 ? "row dense" : "row",
+                        gridTemplateColumns: `repeat(${desktopGridColumns}, minmax(0, 1fr))`,
+                      }}
+                    >
+                      {groupedBts.map((group) => {
+                        const groupSpan = Math.min(group.entries.length, desktopGridColumns);
+
+                        return (
+                          <article
+                            key={group.key}
+                            className="rounded-[24px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-3 shadow-[0_18px_40px_rgba(148,163,184,0.12)] sm:p-4"
+                            style={{
+                              gridColumn: `span ${groupSpan} / span ${groupSpan}`,
+                            }}
+                          >
+                            <button className="flex w-full flex-wrap items-center justify-between gap-3 pb-3 text-left" type="button">
+                              <div className="flex items-center gap-3">
+                                <div>
+                                  <h3 className="text-[1.45rem] font-semibold tracking-tight text-slate-950">
+                                    {group.label}
+                                  </h3>
+                                  <p className="mt-1 text-sm text-slate-500">
+                                    {group.secondaryLabel ?? `${group.entries.length} BT dans ce groupe`}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+                                  {group.entries.length} BT
+                                </span>
+                              </div>
+                            </button>
+
+                            <div
+                              className="grid gap-3"
+                              style={{
+                                gridTemplateColumns: `repeat(${Math.min(group.entries.length, desktopGridColumns)}, minmax(0, 1fr))`,
+                              }}
+                            >
+                              {group.entries.map((bt) => {
+                                const primaryBadge = detectPrimaryBadge(bt);
+                                const teamPreview = getTeamPreview(bt, 8);
+
+                                return (
+                                  <article
+                                    key={`${bt.id}-${bt.pageStart}`}
+                                    className="overflow-hidden rounded-[22px] border border-blue-100 bg-white shadow-[0_16px_36px_rgba(148,163,184,0.12)]"
+                                  >
+                                    <div className={cx("border-b border-slate-100 bg-[linear-gradient(180deg,#ffffff_0%,#fbfdff_100%)] px-4 sm:px-5", isCompactView ? "py-3" : "py-4")}>
+                                      <div className="flex flex-wrap items-start justify-between gap-3">
+                                        <div>
+                                          <div className="flex flex-wrap items-center gap-2">
+                                            <h4
+                                              className={cx(
+                                                "font-semibold tracking-tight text-slate-950",
+                                                isCompactView ? "text-[1.25rem] sm:text-[1.45rem]" : "text-[1.45rem] sm:text-2xl",
+                                              )}
+                                            >
+                                              {bt.id}
+                                            </h4>
+                                            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                                              Page {bt.pageStart}
+                                            </span>
+                                            {primaryBadge ? (
+                                              <span
+                                                className="rounded-full px-3 py-1 text-xs font-semibold text-white shadow-[0_8px_20px_rgba(15,23,42,0.12)]"
+                                                style={{ backgroundColor: primaryBadge.color }}
+                                              >
+                                                {primaryBadge.icon} {primaryBadge.label}
+                                              </span>
+                                            ) : null}
+                                          </div>
+                                          <p
+                                            className={cx(
+                                              "mt-3 text-slate-600",
+                                              isCompactView ? "text-[13px] leading-5" : "text-sm leading-6",
+                                            )}
+                                          >
+                                            {bt.objet || "Objet non reconnu"}
+                                          </p>
+                                        </div>
+
+                                        <div className="flex flex-wrap gap-2">
+                                          {getDocCounts(bt).map(([type, count]) => {
+                                            const config =
+                                              DOC_TYPES_CONFIG[type as keyof typeof DOC_TYPES_CONFIG] ?? DOC_TYPES_CONFIG.DOC;
+
+                                            return (
+                                              <span
+                                                key={`${bt.id}-${type}`}
+                                                className="rounded-full border px-3 py-1 text-xs font-semibold"
+                                                style={{
+                                                  color: config.color,
+                                                  borderColor: `${config.color}33`,
+                                                  backgroundColor: `${config.color}12`,
+                                                }}
+                                              >
+                                                {config.icon} {type} ×{count}
+                                              </span>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className={cx("grid gap-4 px-4 sm:px-5", isCompactView ? "py-3 sm:py-4" : "py-4 sm:py-5")}>
+                                      <div
+                                        className={cx(
+                                          "grid gap-4",
+                                          isCompactView ? "grid-cols-1" : "min-[720px]:grid-cols-[minmax(0,1.15fr)_minmax(220px,0.85fr)]",
+                                        )}
+                                      >
+                                        <div className="space-y-3 text-sm text-slate-700">
+                                          <div className={cx("grid gap-2", isCompactView ? "grid-cols-2" : "sm:grid-cols-2")}>
+                                            <div>📅 {bt.datePrevue || "—"}</div>
+                                            <div>⏱️ {formatDuree(bt.duree) || "—"}</div>
+                                            <div>👤 {bt.client || "—"}</div>
+                                            <div>🧾 {bt.atNum || "—"}</div>
+                                          </div>
+                                          <div className="rounded-[20px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm leading-6 text-slate-700">
+                                            <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                                              Localisation
+                                            </span>
+                                            <p className="mt-2">{bt.localisation || "Non reconnue"}</p>
+                                          </div>
+                                        </div>
+
+                                        <div className={cx("space-y-3", isCompactView && "grid gap-3 sm:grid-cols-2")}>
+                                          <div className="rounded-[20px] border border-slate-200 bg-slate-50/80 px-4 py-3">
+                                            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                                              Equipe
+                                            </p>
+                                            <div className="mt-3 flex flex-wrap gap-2">
+                                              {teamPreview.visible.length > 0 ? (
+                                                <>
+                                                  {teamPreview.visible.map((member) => (
+                                                    <span
+                                                      key={`${bt.id}-${member.key}`}
+                                                      className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm"
+                                                    >
+                                                      {member.label}
+                                                    </span>
+                                                  ))}
+                                                  {teamPreview.hiddenCount > 0 ? (
+                                                    <span className="rounded-full border border-dashed border-slate-300 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-500">
+                                                      +{teamPreview.hiddenCount}
+                                                    </span>
+                                                  ) : null}
+                                                </>
+                                              ) : (
+                                                <span className="text-sm text-slate-500">Aucune équipe détectée</span>
+                                              )}
+                                            </div>
+                                          </div>
+
+                                          <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-3">
+                                            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                                              Documents d&apos;origine
+                                            </p>
+                                            <div className="mt-3 flex flex-wrap gap-2">
+                                              {bt.docs.map((doc) => {
+                                                const config =
+                                                  DOC_TYPES_CONFIG[doc.type as keyof typeof DOC_TYPES_CONFIG] ?? DOC_TYPES_CONFIG.DOC;
+
+                                                return (
+                                                  <button
+                                                    key={`${bt.id}-${doc.page}-${doc.type}`}
+                                                    className="inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-semibold shadow-sm transition hover:-translate-y-0.5"
+                                                    onClick={() => openViewer(bt, doc.page)}
+                                                    style={{
+                                                      color: config.color,
+                                                      borderColor: `${config.color}55`,
+                                                      backgroundColor: `${config.color}10`,
+                                                    }}
+                                                    type="button"
+                                                  >
+                                                    <span>{config.icon}</span>
+                                                    <span>{doc.type}</span>
+                                                    <span className="opacity-70">(p.{doc.page})</span>
+                                                  </button>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {(bt.analyseDesRisques || bt.observations) ? (
+                                        <div className="grid gap-3 min-[980px]:grid-cols-2">
+                                          {bt.analyseDesRisques ? (
+                                            <div className="rounded-[20px] border border-amber-300 bg-[linear-gradient(180deg,#fff8db_0%,#fff3c4_100%)] px-4 py-3 text-sm leading-6 text-amber-950">
+                                              <span className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-700">
+                                                Analyse des risques
+                                              </span>
+                                              <p className={cx("mt-2", isCompactView ? "line-clamp-4 text-[13px] leading-5" : "line-clamp-6")}>
+                                                {bt.analyseDesRisques}
+                                              </p>
+                                            </div>
+                                          ) : null}
+
+                                          {bt.observations ? (
+                                            <div className="rounded-[20px] border border-blue-300 bg-[linear-gradient(180deg,#eff6ff_0%,#dbeafe_100%)] px-4 py-3 text-sm leading-6 text-blue-950">
+                                              <span className="text-xs font-semibold uppercase tracking-[0.22em] text-blue-700">
+                                                Observations
+                                              </span>
+                                              <p className={cx("mt-2", isCompactView ? "line-clamp-4 text-[13px] leading-5" : "line-clamp-6")}>
+                                                {bt.observations}
+                                              </p>
+                                            </div>
+                                          ) : null}
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  </article>
+                                );
+                              })}
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )
                 ) : (
                   <article
                     className={cx(
@@ -878,7 +1294,14 @@ export function BriefWorkspace({
 
       {viewerState ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(8,15,33,0.62)] p-2 backdrop-blur-sm sm:p-4">
-          <div className="flex h-[94vh] w-full max-w-[96vw] flex-col overflow-hidden rounded-[24px] border border-white/60 bg-white shadow-[0_40px_120px_rgba(15,23,42,0.36)] sm:max-h-[92vh] sm:max-w-[1200px] sm:rounded-[28px] min-[1800px]:max-w-[1480px] min-[2300px]:max-w-[1720px]">
+          <div
+            className={cx(
+              "flex h-[95vh] w-full max-w-[98vw] flex-col overflow-hidden rounded-[24px] border border-white/60 bg-white shadow-[0_40px_120px_rgba(15,23,42,0.36)] sm:max-h-[94vh] sm:rounded-[28px]",
+              viewerPageOrientation === "landscape"
+                ? "sm:max-w-[1580px] min-[1800px]:max-w-[1820px] min-[2300px]:max-w-[2080px]"
+                : "sm:max-w-[1200px] min-[1800px]:max-w-[1480px] min-[2300px]:max-w-[1720px]",
+            )}
+          >
             <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-5">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -912,6 +1335,29 @@ export function BriefWorkspace({
               </div>
 
               <div className="flex flex-wrap gap-2">
+                <button
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 disabled:opacity-40"
+                  disabled={viewerZoom <= 0.6}
+                  onClick={() => changeViewerZoom("out")}
+                  type="button"
+                >
+                  −
+                </button>
+                <button
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
+                  onClick={resetViewerZoom}
+                  type="button"
+                >
+                  Zoom {Math.round(viewerZoom * 100)}%
+                </button>
+                <button
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 disabled:opacity-40"
+                  disabled={viewerZoom >= 3}
+                  onClick={() => changeViewerZoom("in")}
+                  type="button"
+                >
+                  +
+                </button>
                 <button
                   className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 disabled:opacity-40"
                   disabled={sortedViewerPages.indexOf(viewerState.currentPage) <= 0}
@@ -950,7 +1396,7 @@ export function BriefWorkspace({
               </div>
             </div>
 
-            <div className="flex-1 overflow-auto bg-[linear-gradient(180deg,#eef3fa_0%,#f8fbff_100%)] p-2 sm:p-4">
+            <div className="flex-1 overflow-hidden bg-[linear-gradient(180deg,#eef3fa_0%,#f8fbff_100%)] p-2 sm:p-4">
               {viewerError ? (
                 <div className="rounded-[22px] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
                   {viewerError}
@@ -960,12 +1406,33 @@ export function BriefWorkspace({
                   Chargement du document original...
                 </div>
               ) : (
-                <div className="rounded-[20px] border border-slate-200 bg-white p-2 shadow-inner sm:rounded-[24px] sm:p-3">
-                  <canvas className="mx-auto h-auto max-w-full rounded-[16px]" ref={canvasRef} />
+                <div className="flex h-full min-h-[420px] flex-col rounded-[20px] border border-slate-200 bg-white p-2 shadow-inner sm:rounded-[24px] sm:p-3">
+                  <div
+                    className={cx(
+                      "flex-1 min-h-[420px] overflow-auto rounded-[16px]",
+                      viewerZoom > 1 ? (isViewerPanning ? "cursor-grabbing" : "cursor-grab") : "cursor-default",
+                    )}
+                    onPointerDown={handleViewerPointerDown}
+                    onPointerMove={handleViewerPointerMove}
+                    onPointerUp={handleViewerPointerUp}
+                    onPointerCancel={handleViewerPointerUp}
+                    ref={viewerViewportRef}
+                    style={{ touchAction: viewerZoom > 1 ? "none" : "auto" }}
+                  >
+                    <div
+                      className={cx(
+                        "flex min-h-full min-w-full items-start",
+                        viewerZoom > 1 ? "justify-start" : "justify-center",
+                      )}
+                    >
+                      <canvas className="block h-auto max-w-none rounded-[16px]" ref={canvasRef} />
+                    </div>
+                  </div>
                   <p className="mt-3 text-sm text-slate-500">
                     Page {sortedViewerPages.indexOf(viewerState.currentPage) + 1} sur{" "}
                     {sortedViewerPages.length}
                     {currentViewerDoc ? ` — ${currentViewerDoc.type}` : ""}
+                    {viewerZoom > 1 ? " — glisser pour se deplacer" : ""}
                   </p>
                 </div>
               )}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AppShellHeader } from "@/components/app-shell-header";
 import { getReadableOfficeModules, requireOfficeModule } from "@/lib/auth";
+import { getModuleTheme } from "@/lib/module-theme";
 import { getTechnicianAdminRows } from "@/lib/admin-technicians";
 
 function badgeClassName(active: boolean) {
@@ -38,6 +39,7 @@ function getAvatarTone(displayName: string) {
 export default async function TechniciansAdminPage(
   props: PageProps<"/admin/techniciens">,
 ) {
+  const adminTheme = getModuleTheme("admin");
   const auth = await requireOfficeModule("technicians_admin");
   const allowedModules = getReadableOfficeModules(auth);
   const searchParams = await props.searchParams;
@@ -45,8 +47,8 @@ export default async function TechniciansAdminPage(
   const technicians = await getTechnicianAdminRows(query);
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(135deg,#edf4fb_0%,#f6f8fc_45%,#eef3f8_100%)] px-4 py-4 text-slate-900 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1720px]">
+    <main className={`min-h-screen px-4 py-4 text-slate-900 sm:px-6 lg:px-8 ${adminTheme.pageBackgroundClassName}`}>
+      <div className="mx-auto max-w-[2360px]">
         <AppShellHeader
           activeModule="admin"
           allowedModules={allowedModules}
@@ -64,7 +66,7 @@ export default async function TechniciansAdminPage(
                 Module Admin
               </p>
               <h2 className="mt-2 text-4xl font-semibold tracking-tight text-slate-950">
-                Referentiel techniciens
+                Référentiel techniciens
               </h2>
               <p className="mt-3 max-w-[68ch] text-base leading-7 text-slate-500">
                 Cree, modifie et desactive les techniciens directement dans l&apos;application,
@@ -127,7 +129,7 @@ export default async function TechniciansAdminPage(
                 </colgroup>
                 <thead className="bg-[linear-gradient(90deg,#2d63da_0%,#3567e7_100%)] text-white">
                   <tr>
-                    {["Technicien", "NNI", "Manager", "Site", "Role", "PTC/PTD", "Ordre", "Etat", "Action"].map(
+                    {["Technicien", "NNI", "Manager", "Site", "Rôle", "PTC/PTD", "Ordre", "État", "Action"].map(
                       (heading) => (
                         <th key={heading} className="px-4 py-4 text-left font-semibold">
                           {heading}

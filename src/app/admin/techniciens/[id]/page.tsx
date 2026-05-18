@@ -3,11 +3,13 @@ import { TechnicianForm } from "@/app/admin/techniciens/technician-form";
 import { AppShellHeader } from "@/components/app-shell-header";
 import { getManagerOptions, getTechnicianById } from "@/lib/admin-technicians";
 import { getReadableOfficeModules, requireOfficeModule } from "@/lib/auth";
+import { getModuleTheme } from "@/lib/module-theme";
 import { notFound } from "next/navigation";
 
 export default async function TechnicianDetailPage(
   props: PageProps<"/admin/techniciens/[id]">,
 ) {
+  const adminTheme = getModuleTheme("admin");
   const auth = await requireOfficeModule("technicians_admin");
   const allowedModules = getReadableOfficeModules(auth);
   const { id } = await props.params;
@@ -21,8 +23,8 @@ export default async function TechnicianDetailPage(
   }
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(135deg,#edf4fb_0%,#f6f8fc_45%,#eef3f8_100%)] px-4 py-4 text-slate-900 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1720px]">
+    <main className={`min-h-screen px-4 py-4 text-slate-900 sm:px-6 lg:px-8 ${adminTheme.pageBackgroundClassName}`}>
+      <div className="mx-auto max-w-[2360px]">
         <AppShellHeader
           activeModule="admin"
           allowedModules={allowedModules}
