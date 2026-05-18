@@ -59,7 +59,7 @@ export async function publishMobileDispatchAction(
   formData: FormData,
 ): Promise<MobileDispatchActionState> {
   void previousState;
-  await requireOfficeWriteModule("referent");
+  const auth = await requireOfficeWriteModule("referent");
 
   const adminSupabase = createServerSupabaseAdminClient();
 
@@ -93,7 +93,6 @@ export async function publishMobileDispatchAction(
       throw new Error("Aucun BT a publier.");
     }
 
-    const auth = await requireOfficeWriteModule("referent");
     const publishedByEmail = auth.user?.email ?? null;
 
     if (!publishedByEmail) {
@@ -149,6 +148,7 @@ export async function publishMobileDispatchAction(
       return value?.name ?? null;
     };
 
+    const publishedAt = new Date().toISOString();
     const itemRows = (technicianRows ?? []).map((technician) => {
       const workMode =
         technician.ptc && technician.ptd
@@ -172,15 +172,22 @@ export async function publishMobileDispatchAction(
         mission_date: missionDate,
         observation: null,
         office_account_id: accountByTechnicianId.get(technician.id) ?? null,
-        published_at: new Date().toISOString(),
+        published_at: publishedAt,
         site_code: siteCode,
         technician_id: technician.id,
         technician_name: technician.display_name,
         work_mode: workMode,
+        acknowledged_at: null,
+        acknowledged_by_account_id: null,
+        acknowledged_by_email: null,
       };
     });
 
-    const { error: itemsError } = await adminSupabase.from("mobile_dispatch_items").insert(itemRows);
+    const { error: itemsError } = await adminSupabase
+      .from("mobile_dispatch_items")
+      .upsert(itemRows, {
+        onConflict: "technician_id,mission_date",
+      });
 
     if (itemsError) {
       throw new Error(itemsError.message);
