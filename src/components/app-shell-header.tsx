@@ -16,7 +16,7 @@ type AppShellHeaderProps = {
   role: string | null;
   userEmail: string | null;
   title: string;
-  subtitle: string;
+  subtitle?: string;
   sourceLabel?: string | null;
   weatherGeneratedAtLabel?: string | null;
   weatherZones?: HeaderWeatherZone[];
