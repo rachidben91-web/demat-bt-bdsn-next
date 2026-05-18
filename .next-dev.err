@@ -2,3 +2,667 @@
 [browser] Detected `scroll-behavior: smooth` on the `<html>` element. To disable smooth scrolling during route transitions, add `data-scroll-behavior="smooth"` to your <html> element. Learn more: https://nextjs.org/docs/messages/missing-data-scroll-behavior
 [browser] Detected `scroll-behavior: smooth` on the `<html>` element. To disable smooth scrolling during route transitions, add `data-scroll-behavior="smooth"` to your <html> element. Learn more: https://nextjs.org/docs/messages/missing-data-scroll-behavior
 [browser] Detected `scroll-behavior: smooth` on the `<html>` element. To disable smooth scrolling during route transitions, add `data-scroll-behavior="smooth"` to your <html> element. Learn more: https://nextjs.org/docs/messages/missing-data-scroll-behavior
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+⨯ ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  [90m665 |[0m                   </div>
+  [90m666 |[0m                 </div>
+[31m[1m>[0m [90m667 |[0m                 </section>
+  [90m    |[0m                           [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+[31m[1m>[0m [90m668 |[0m               </div>
+  [90m    |[0m [31m[1m^^^^^^^^^^^^^^[0m
+  [90m669 |[0m
+  [90m670 |[0m               <section
+  [90m671 |[0m                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx
+
+
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+⨯ ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  [90m665 |[0m                   </div>
+  [90m666 |[0m                 </div>
+[31m[1m>[0m [90m667 |[0m                 </section>
+  [90m    |[0m                           [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+[31m[1m>[0m [90m668 |[0m               </div>
+  [90m    |[0m [31m[1m^^^^^^^^^^^^^^[0m
+  [90m669 |[0m
+  [90m670 |[0m               <section
+  [90m671 |[0m                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx
+
+
+⨯ ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  [90m665 |[0m                   </div>
+  [90m666 |[0m                 </div>
+[31m[1m>[0m [90m667 |[0m                 </section>
+  [90m    |[0m                           [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+[31m[1m>[0m [90m668 |[0m               </div>
+  [90m    |[0m [31m[1m^^^^^^^^^^^^^^[0m
+  [90m669 |[0m
+  [90m670 |[0m               <section
+  [90m671 |[0m                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx
+
+
+[browser] Uncaught Error: ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx
+
+
+    at <unknown> (Error: ./src/components/brief-workspace.tsx:667:27)
+    at <unknown> (Error: (./src/components/brief-workspace.tsx:667:27)
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] Uncaught Error: ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx
+
+
+    at <unknown> (Error: ./src/components/brief-workspace.tsx:667:27)
+    at <unknown> (Error: (./src/components/brief-workspace.tsx:667:27)
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] ./src/components/brief-workspace.tsx:667:27
+Expected '</', got 'jsx text'
+  665 |                   </div>
+  666 |                 </div>
+> 667 |                 </section>
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 668 |               </div>
+      | ^^^^^^^^^^^^^^
+  669 |
+  670 |               <section
+  671 |                 className={cx(
+
+Parsing ecmascript source code failed
+
+Import trace:
+  Server Component:
+    ./src/components/brief-workspace.tsx
+    ./src/app/brief/page.tsx 
+[browser] Detected `scroll-behavior: smooth` on the `<html>` element. To disable smooth scrolling during route transitions, add `data-scroll-behavior="smooth"` to your <html> element. Learn more: https://nextjs.org/docs/messages/missing-data-scroll-behavior
+[browser] Detected `scroll-behavior: smooth` on the `<html>` element. To disable smooth scrolling during route transitions, add `data-scroll-behavior="smooth"` to your <html> element. Learn more: https://nextjs.org/docs/messages/missing-data-scroll-behavior

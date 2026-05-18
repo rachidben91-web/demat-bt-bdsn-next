@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { AppShellHeader } from "@/components/app-shell-header";
@@ -41,13 +40,6 @@ function formatDayLabel(value: string) {
     month: "long",
     year: "numeric",
   }).format(new Date(`${value}T12:00:00Z`));
-}
-
-function formatTimestamp(value: string) {
-  return new Intl.DateTimeFormat("fr-FR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(new Date(value));
 }
 
 function formatDuree(value: string) {
@@ -121,10 +113,6 @@ function getTeamPreview(bt: ExtractedBt, maxVisible = 4) {
   };
 }
 
-function getUniqueDocTypes(bts: ExtractedBt[]) {
-  return [...new Set(bts.flatMap((bt) => bt.docs.map((doc) => doc.type)))].sort();
-}
-
 function normalizeText(value: string) {
   return value
     .toLowerCase()
@@ -158,11 +146,9 @@ export function BriefWorkspace({
   const { bts, currentDay, days } = data;
   const [query, setQuery] = useState("");
   const [selectedTechnician, setSelectedTechnician] = useState("all");
-  const [selectedDocType, setSelectedDocType] = useState("all");
   const [viewMode, setViewMode] = useState<ViewMode>("large");
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("team");
   const [collapsedGroups, setCollapsedGroups] = useState<CollapsedGroups>({});
-  const [showSavedDays, setShowSavedDays] = useState(true);
   const [viewerState, setViewerState] = useState<ViewerState | null>(null);
   const [pdfDocument, setPdfDocument] = useState<PDFDocumentProxy | null>(null);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
@@ -176,7 +162,6 @@ export function BriefWorkspace({
       [...new Set(bts.flatMap((bt) => bt.team.map((member) => member.name || member.nni)).filter(Boolean))].sort(),
     [bts],
   );
-  const docTypeOptions = useMemo(() => getUniqueDocTypes(bts), [bts]);
 
   const filteredBts = useMemo(() => {
     return bts.filter((bt) => {
@@ -197,12 +182,9 @@ export function BriefWorkspace({
         selectedTechnician === "all" ||
         bt.team.some((member) => (member.name || member.nni) === selectedTechnician);
 
-      const docTypeMatch =
-        selectedDocType === "all" || bt.docs.some((doc) => doc.type === selectedDocType);
-
-      return queryMatch && technicianMatch && docTypeMatch;
+      return queryMatch && technicianMatch;
     });
-  }, [bts, query, selectedTechnician, selectedDocType]);
+  }, [bts, query, selectedTechnician]);
 
   const groupedBts = useMemo(() => {
     const groups = new Map<
@@ -281,8 +263,6 @@ export function BriefWorkspace({
   useEffect(() => {
     function syncResponsivePreferences() {
       const profile = getScreenProfile(window.innerWidth);
-
-      setShowSavedDays(window.innerWidth >= 1024);
 
       if (!hasManualViewModeRef.current) {
         setViewMode(getAutoViewMode(profile));
@@ -453,6 +433,14 @@ export function BriefWorkspace({
     setViewMode(nextMode);
   }
 
+  function handleSelectedDayChange(dayDate: string) {
+    if (!dayDate) {
+      return;
+    }
+
+    window.location.href = `/brief?date=${dayDate}`;
+  }
+
   function toggleGroup(groupKey: string) {
     setCollapsedGroups((current) => ({
       ...current,
@@ -475,7 +463,7 @@ export function BriefWorkspace({
 
         <section className="mt-4 rounded-[28px] border border-white/80 bg-white/72 p-4 shadow-[0_30px_90px_rgba(148,163,184,0.18)] backdrop-blur sm:mt-5 sm:p-5 lg:p-6 xl:p-8">
           <div className="space-y-4 lg:space-y-5">
-            <section className="rounded-[26px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f7faff_100%)] p-4 shadow-sm">
+            <section className="sticky top-4 z-20 rounded-[26px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(247,250,255,0.96)_100%)] p-4 shadow-[0_18px_40px_rgba(148,163,184,0.16)] backdrop-blur">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-blue-600">
@@ -484,11 +472,6 @@ export function BriefWorkspace({
                   <h2 className="mt-2 text-[1.85rem] font-semibold tracking-tight text-slate-950">
                     {currentDay ? formatDayLabel(currentDay.dayDate) : "Aucune journee"}
                   </h2>
-                  <p className="mt-3 text-sm leading-6 text-slate-500">
-                    {currentDay
-                      ? `${currentDay.btCount} BT sauvegardes et ${currentDay.pageCount} pages sources disponibles.`
-                      : "Commencez par sauvegarder une journee depuis le module Import PDF."}
-                  </p>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -513,119 +496,38 @@ export function BriefWorkspace({
                 </div>
               </div>
 
-              <div className="mt-4 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-                    Mise a jour
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-slate-900">
-                    {currentDay ? formatTimestamp(currentDay.updatedAt) : "—"}
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 transition hover:border-blue-200 hover:text-blue-700 lg:hidden"
-                    onClick={() => setShowSavedDays((current) => !current)}
-                    type="button"
+              <div className="mt-4 rounded-[22px] border border-slate-200 bg-white/90 p-3 shadow-sm">
+                <div className="flex flex-col gap-3 min-[1680px]:grid min-[1680px]:grid-cols-[240px_minmax(0,0.9fr)_260px_auto] min-[1680px]:items-center">
+                  <select
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-blue-400"
+                    onChange={(event) => handleSelectedDayChange(event.target.value)}
+                    value={currentDay?.dayDate ?? ""}
                   >
-                    {showSavedDays ? "Masquer les journees" : "Afficher les journees"}
-                  </button>
-                  <Link
-                    className="inline-flex items-center justify-center rounded-[18px] bg-slate-950 px-4 py-3 text-sm font-semibold text-white shadow-[0_18px_32px_rgba(15,23,42,0.18)] transition hover:bg-slate-800"
-                    href="/import-pdf"
+                    {days.map((day) => (
+                      <option key={day.id} value={day.dayDate}>
+                        {formatDayLabel(day.dayDate)}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none placeholder:text-slate-400 focus:border-blue-400 focus:bg-white"
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Rechercher un BT, client, adresse, equipe..."
+                    value={query}
+                  />
+                  <select
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-400"
+                    onChange={(event) => setSelectedTechnician(event.target.value)}
+                    value={selectedTechnician}
                   >
-                    Importer une autre journee
-                  </Link>
-                </div>
-              </div>
-            </section>
-
-            <section className="rounded-[24px] border border-slate-200/80 bg-white p-4 shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-blue-600">
-                    Journees sauvegardees
-                  </p>
-                  <h3 className="mt-1 text-lg font-semibold tracking-tight text-slate-950">
-                    Historique disponible
-                  </h3>
-                </div>
-                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-                  {days.length}
-                </span>
-              </div>
-
-              <div className="mt-4 grid gap-3 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                {(showSavedDays ? days : days.slice(0, 1)).length > 0 ? (
-                  (showSavedDays ? days : days.slice(0, 1)).map((day) => {
-                    const isActive = currentDay?.id === day.id;
-
-                    return (
-                      <Link
-                        key={day.id}
-                        className={cx(
-                          "block rounded-[22px] border px-4 py-4 transition",
-                          isActive
-                            ? "border-blue-200 bg-[linear-gradient(180deg,#eff6ff_0%,#dbeafe_100%)] shadow-[0_14px_30px_rgba(59,130,246,0.10)]"
-                            : "border-slate-200 bg-slate-50/80 hover:bg-white",
-                        )}
-                        href={`/brief?date=${day.dayDate}`}
-                      >
-                        <p className="text-sm font-semibold text-slate-950">
-                          {formatDayLabel(day.dayDate)}
-                        </p>
-                        <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-500">
-                          {day.btCount} BT · {day.pageCount} pages
-                        </p>
-                        <p className="mt-2 text-xs text-slate-500">MAJ {formatTimestamp(day.updatedAt)}</p>
-                      </Link>
-                    );
-                  })
-                ) : (
-                  <div className="rounded-[22px] border border-dashed border-slate-300 px-4 py-6 text-sm text-slate-500">
-                    Aucune journee enregistree pour le moment.
-                  </div>
-                )}
-              </div>
-
-              {!showSavedDays && days.length > 1 ? (
-                <p className="mt-3 text-xs text-slate-500">
-                  {days.length - 1} autre(s) journee(s) masquees pour garder une vue compacte.
-                </p>
-              ) : null}
-            </section>
-
-            <div className="space-y-4 lg:space-y-5">
-              <section className="rounded-[24px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f7faff_100%)] p-4 shadow-sm">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-blue-600">
-                      Apercu rapide
-                    </p>
-                    <h3 className="mt-1 text-lg font-semibold tracking-tight text-slate-950">
-                      {currentDay ? formatDayLabel(currentDay.dayDate) : "Aucune journee"}
-                    </h3>
-                  </div>
-
-                  <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                    {currentDay ? "Journee chargee" : "Aucune journee"}
-                  </div>
-                </div>
-              </section>
-
-              <section className="rounded-[24px] border border-slate-200/80 bg-white p-4 shadow-sm sm:p-5">
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.24em] text-blue-600">
-                      Filtres
-                    </p>
-                    <h3 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
-                      Tous les BT detectes + documents associes
-                    </h3>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
+                    <option value="all">Tous les techniciens</option>
+                    {technicianOptions.map((technician) => (
+                      <option key={technician} value={technician}>
+                        {technician}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="flex flex-wrap gap-2 min-[1440px]:justify-end">
                     {[
                       { key: "large", label: "Grandes vignettes" },
                       { key: "compact", label: "Petites vignettes" },
@@ -662,56 +564,12 @@ export function BriefWorkspace({
                         {option.label}
                       </button>
                     ))}
-                    {docTypeOptions.slice(0, 6).map((type) => {
-                      const config = DOC_TYPES_CONFIG[type as keyof typeof DOC_TYPES_CONFIG] ?? DOC_TYPES_CONFIG.DOC;
-
-                      return (
-                        <span
-                          key={type}
-                          className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold"
-                          style={{ color: config.color }}
-                        >
-                          {config.icon} {type}
-                        </span>
-                      );
-                    })}
                   </div>
                 </div>
+              </div>
+            </section>
 
-                <div className="mt-5 grid gap-3 md:grid-cols-2 min-[1200px]:grid-cols-[minmax(0,1.5fr)_minmax(250px,1fr)_minmax(250px,1fr)]">
-                  <input
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none placeholder:text-slate-400 focus:border-blue-400 focus:bg-white"
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Rechercher un BT, client, adresse, equipe..."
-                    value={query}
-                  />
-                  <select
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-400"
-                    onChange={(event) => setSelectedTechnician(event.target.value)}
-                    value={selectedTechnician}
-                  >
-                    <option value="all">Tous les techniciens</option>
-                    {technicianOptions.map((technician) => (
-                      <option key={technician} value={technician}>
-                        {technician}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-400"
-                    onChange={(event) => setSelectedDocType(event.target.value)}
-                    value={selectedDocType}
-                  >
-                    <option value="all">Tous les documents</option>
-                    {docTypeOptions.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </section>
-
+            <div className="space-y-4 lg:space-y-5">
               <section
                 className={cx(
                   isCategoryLayout ? "grid gap-5" : "space-y-0",
@@ -956,25 +814,43 @@ export function BriefWorkspace({
                                   </div>
                                 </div>
 
-                                {bt.observations && !isCategoryLayout ? (
-                                  <div
-                                    className={cx(
-                                      "rounded-[20px] border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm leading-6 text-slate-700",
-                                    )}
-                                  >
-                                    <span className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-700">
-                                      Observations
-                                    </span>
-                                    <p
-                                      className={cx(
-                                        "mt-2",
-                                        isCompactView || isCategoryLayout
-                                          ? "line-clamp-3 text-[13px] leading-5"
-                                          : "line-clamp-6",
-                                      )}
-                                    >
-                                      {bt.observations}
-                                    </p>
+                                {(bt.analyseDesRisques || bt.observations) && !isCategoryLayout ? (
+                                  <div className="grid gap-3 min-[980px]:grid-cols-2">
+                                    {bt.analyseDesRisques ? (
+                                      <div className="rounded-[20px] border border-amber-300 bg-[linear-gradient(180deg,#fff8db_0%,#fff3c4_100%)] px-4 py-3 text-sm leading-6 text-amber-950">
+                                        <span className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-700">
+                                          Analyse des risques
+                                        </span>
+                                        <p
+                                          className={cx(
+                                            "mt-2",
+                                            isCompactView || isCategoryLayout
+                                              ? "line-clamp-4 text-[13px] leading-5"
+                                              : "line-clamp-6",
+                                          )}
+                                        >
+                                          {bt.analyseDesRisques}
+                                        </p>
+                                      </div>
+                                    ) : null}
+
+                                    {bt.observations ? (
+                                      <div className="rounded-[20px] border border-blue-300 bg-[linear-gradient(180deg,#eff6ff_0%,#dbeafe_100%)] px-4 py-3 text-sm leading-6 text-blue-950">
+                                        <span className="text-xs font-semibold uppercase tracking-[0.22em] text-blue-700">
+                                          Observations
+                                        </span>
+                                        <p
+                                          className={cx(
+                                            "mt-2",
+                                            isCompactView || isCategoryLayout
+                                              ? "line-clamp-4 text-[13px] leading-5"
+                                              : "line-clamp-6",
+                                          )}
+                                        >
+                                          {bt.observations}
+                                        </p>
+                                      </div>
+                                    ) : null}
                                   </div>
                                 ) : null}
                               </div>
