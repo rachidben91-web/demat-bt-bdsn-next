@@ -27,7 +27,7 @@ export default async function NewTechnicianPage() {
         <section className="mt-5 rounded-[30px] border border-white/80 bg-white/68 p-5 shadow-[0_26px_70px_rgba(148,163,184,0.16)] backdrop-blur sm:p-6 lg:p-8">
           <div className="mb-6">
             <p className="text-sm font-semibold uppercase tracking-[0.24em] text-blue-600">
-              Admin
+              Admin tech
             </p>
             <h2 className="mt-2 text-4xl font-semibold tracking-tight text-slate-950">
               Creer une fiche technicien

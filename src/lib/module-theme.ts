@@ -46,7 +46,7 @@ export const moduleThemeMap: Record<AppModuleId, ModuleTheme> = {
     headerClassName:
       "bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.16),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.96)_0%,rgba(243,245,255,0.98)_54%,rgba(236,240,251,0.98)_100%)]",
     icon: "AD",
-    label: "Admin",
+    label: "Admin tech",
     pageBackgroundClassName:
       "bg-[radial-gradient(circle_at_top_left,#eef2ff_0%,#f5f3ff_28%,#f3f6fb_58%,#edf3f8_100%)]",
     tintClassName: "text-indigo-600",

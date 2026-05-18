@@ -55,7 +55,7 @@ export default async function TechniciansAdminPage(
           isSuperAdmin={auth.role === "admin"}
           role={auth.role ?? auth.officeAccount?.officeRole ?? null}
           subtitle="Gestion du referentiel techniciens, managers et attributs metier."
-          title="Administration"
+          title="Admin tech"
           userEmail={auth.user?.email ?? null}
         />
 
@@ -63,7 +63,7 @@ export default async function TechniciansAdminPage(
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.24em] text-blue-600">
-                Module Admin
+                Module Admin tech
               </p>
               <h2 className="mt-2 text-4xl font-semibold tracking-tight text-slate-950">
                 Référentiel techniciens

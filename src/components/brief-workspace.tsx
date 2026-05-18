@@ -15,9 +15,12 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 type BriefWorkspaceProps = {
   allowedModules?: OfficeModuleKey[];
   data: BtImportDayOverview;
+  headerDateTimeLabel: string;
   isSuperAdmin?: boolean;
   role: string | null;
   userEmail: string | null;
+  weatherGeneratedAtLabel?: string | null;
+  weatherZones?: import("@/lib/weather").HeaderWeatherZone[];
 };
 
 type ViewerState = {
@@ -145,9 +148,12 @@ function getAutoViewMode(profile: ScreenProfile): ViewMode {
 export function BriefWorkspace({
   allowedModules = [],
   data,
+  headerDateTimeLabel,
   isSuperAdmin = false,
   role,
   userEmail,
+  weatherGeneratedAtLabel,
+  weatherZones = [],
 }: BriefWorkspaceProps) {
   const briefTheme = getModuleTheme("brief");
   const { bts, currentDay, days } = data;
@@ -649,11 +655,13 @@ export function BriefWorkspace({
         <AppShellHeader
           activeModule="brief"
           allowedModules={allowedModules}
+          headerDateTimeLabel={headerDateTimeLabel}
           isSuperAdmin={isSuperAdmin}
           role={role}
-          subtitle="Vue référent enrichie : regroupement, pastilles métier, documents d'origine et navigation par équipe."
           title="Brief"
           userEmail={userEmail}
+          weatherGeneratedAtLabel={weatherGeneratedAtLabel}
+          weatherZones={weatherZones}
         />
 
         <section className="mt-4 rounded-[28px] border border-white/80 bg-white/72 p-4 shadow-[0_30px_90px_rgba(148,163,184,0.18)] backdrop-blur sm:mt-5 sm:p-5 lg:p-6 xl:p-8">

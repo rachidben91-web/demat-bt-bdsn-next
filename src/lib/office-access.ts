@@ -57,8 +57,8 @@ export const OFFICE_MODULE_META: Record<
     description: "Chargement du PDF journalier et préparation des BT du jour.",
   },
   technicians_admin: {
-    label: "Techniciens",
-    description: "Référentiel techniciens, managers et attributs métier.",
+    label: "Admin tech",
+    description: "Référentiel techniciens, managers et paramètres métier.",
   },
   office_access: {
     label: "Accès",

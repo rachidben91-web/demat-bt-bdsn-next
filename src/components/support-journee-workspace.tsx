@@ -542,7 +542,6 @@ export function SupportJourneeWorkspace({
           allowedModules={allowedModules}
           isSuperAdmin={isSuperAdmin}
           role={role}
-          subtitle="Module dédié au pilotage quotidien de l'équipe terrain."
           title="Support Journée"
           userEmail={userEmail}
           weatherGeneratedAtLabel={headerWeather.generatedAtLabel}
