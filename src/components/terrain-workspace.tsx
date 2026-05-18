@@ -1,4 +1,6 @@
 import { LogoutButton } from "@/components/logout-button";
+import { MobileDispatchAckForm } from "@/components/mobile-dispatch-ack-form";
+import type { MobileDispatchItem } from "@/lib/mobile-dispatch";
 import {
   TERRAIN_ROLE_LABELS,
   type TerrainRole,
@@ -13,6 +15,7 @@ type TerrainTechnician = {
 type TerrainWorkspaceProps = {
   currentDateLabel: string;
   loginIdentifier: string | null;
+  mobileDispatch: MobileDispatchItem | null;
   technician: TerrainTechnician | null;
   terrainRole: TerrainRole;
   userEmail: string | null;
@@ -33,9 +36,38 @@ function extractFirstName(userEmail: string | null) {
   return firstChunk.charAt(0).toUpperCase() + firstChunk.slice(1).toLowerCase();
 }
 
+function formatMissionDate(value: string) {
+  return new Intl.DateTimeFormat("fr-FR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(`${value}T12:00:00Z`));
+}
+
+function formatTimestamp(value: string) {
+  return new Intl.DateTimeFormat("fr-FR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function departureInstructionLabel(value: MobileDispatchItem["departureInstruction"]) {
+  if (value === "agency") {
+    return "Passage agence obligatoire";
+  }
+
+  if (value === "direct") {
+    return "Depart direct autorise";
+  }
+
+  return "Depart a confirmer";
+}
+
 export function TerrainWorkspace({
   currentDateLabel,
   loginIdentifier,
+  mobileDispatch,
   technician,
   terrainRole,
   userEmail,
@@ -55,10 +87,9 @@ export function TerrainWorkspace({
               <h1 className="mt-3 text-[2.4rem] font-semibold tracking-[-0.05em] text-slate-950">
                 Bonjour {firstName}
               </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
-                Cette page d&apos;accueil affichera uniquement les éléments envoyés sur mobile
-                pour ta journée terrain.
-              </p>
+                <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
+                  Cette page affiche uniquement les informations publiées sur mobile pour ta journée terrain.
+                </p>
               <div className="mt-5 flex flex-wrap gap-2">
                 <span className="rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-800">
                   {roleLabel}
@@ -90,50 +121,142 @@ export function TerrainWorkspace({
         </header>
 
         <section className="mt-5">
-          <article className="rounded-[30px] border border-cyan-100/90 bg-[linear-gradient(155deg,rgba(240,253,250,0.95),rgba(255,255,255,0.92))] px-5 py-6 shadow-[0_20px_46px_rgba(148,163,184,0.14)]">
-            <div className="flex items-start gap-4">
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[24px] border border-cyan-200 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.95),rgba(207,250,254,0.85))] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
-                <span className="text-2xl">⌁</span>
+          {mobileDispatch ? (
+            <article className="rounded-[30px] border border-emerald-100/90 bg-[linear-gradient(155deg,rgba(240,253,244,0.95),rgba(255,255,255,0.92))] px-5 py-6 shadow-[0_20px_46px_rgba(148,163,184,0.14)]">
+              <div className="flex items-start gap-4">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[24px] border border-emerald-200 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.95),rgba(220,252,231,0.85))] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+                  <span className="text-2xl">✓</span>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-emerald-700">
+                    Journee publiee
+                  </p>
+                  <h2 className="mt-2 text-[1.8rem] font-semibold tracking-[-0.03em] text-slate-950">
+                    {mobileDispatch.activitySummary}
+                  </h2>
+                  <p className="mt-2 text-sm leading-7 text-slate-600">
+                    Mission du {formatMissionDate(mobileDispatch.missionDate)} · publiee le{" "}
+                    {formatTimestamp(mobileDispatch.publishedAt)}.
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-cyan-700">
-                  Accueil mobile
-                </p>
-                <h2 className="mt-2 text-[1.8rem] font-semibold tracking-[-0.03em] text-slate-950">
-                  Aucun envoi reçu pour le moment
-                </h2>
-                <p className="mt-3 max-w-[56ch] text-sm leading-7 text-slate-600">
-                  Tant qu&apos;une journée n&apos;a pas été préparée puis envoyée vers le mobile,
-                  rien n&apos;apparaît ici. Dès qu&apos;une affectation sera publiée pour toi,
-                  cette page affichera le contenu utile du jour.
-                </p>
-              </div>
-            </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[22px] border border-white/85 bg-white/90 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
-                  Statut
-                </p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">
-                  En attente d&apos;une journée envoyée
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  Aucun brief, aucune intervention et aucun repère mobile ne sont encore
-                  disponibles pour ce compte.
-                </p>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-[22px] border border-white/85 bg-white/90 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                    Consigne de depart
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">
+                    {departureInstructionLabel(mobileDispatch.departureInstruction)}
+                  </p>
+                </div>
+                <div className="rounded-[22px] border border-white/85 bg-white/90 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                    Site
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">
+                    {mobileDispatch.siteCode ?? technician?.site ?? "Non renseigne"}
+                  </p>
+                </div>
+                <div className="rounded-[22px] border border-white/85 bg-white/90 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                    Manager
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">
+                    {mobileDispatch.managerName ?? technician?.managerName ?? "Non renseigne"}
+                  </p>
+                </div>
+                <div className="rounded-[22px] border border-white/85 bg-white/90 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                    Mode
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">
+                    {mobileDispatch.workMode ?? "—"}
+                  </p>
+                </div>
               </div>
-              <div className="rounded-[22px] border border-white/85 bg-white/90 p-4">
+
+              <div className="mt-4 rounded-[24px] border border-white/80 bg-white/92 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
-                  Ce qui apparaîtra ici
+                  Interventions transmises
                 </p>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Activité du jour, éléments de brief, consignes terrain et informations utiles
-                  envoyées depuis le back-office.
-                </p>
+                <div className="mt-3 space-y-3">
+                  {mobileDispatch.btPayload.map((bt) => (
+                    <article
+                      key={`${bt.btId}-${bt.pageStart}`}
+                      className="rounded-[20px] border border-slate-200 bg-slate-50/80 p-4"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-slate-950">{bt.btId}</p>
+                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                          Page {bt.pageStart}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm font-medium text-slate-800">
+                        {bt.objet || "Objet non renseigne"}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {bt.client || "Client non renseigne"}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {bt.localisation || "Localisation non renseignee"}
+                      </p>
+                    </article>
+                  ))}
+                </div>
               </div>
-            </div>
-          </article>
+
+              <MobileDispatchAckForm
+                acknowledgedAt={mobileDispatch.acknowledgedAt}
+                itemId={mobileDispatch.id}
+              />
+            </article>
+          ) : (
+            <article className="rounded-[30px] border border-cyan-100/90 bg-[linear-gradient(155deg,rgba(240,253,250,0.95),rgba(255,255,255,0.92))] px-5 py-6 shadow-[0_20px_46px_rgba(148,163,184,0.14)]">
+              <div className="flex items-start gap-4">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[24px] border border-cyan-200 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.95),rgba(207,250,254,0.85))] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+                  <span className="text-2xl">⌁</span>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-cyan-700">
+                    Accueil mobile
+                  </p>
+                  <h2 className="mt-2 text-[1.8rem] font-semibold tracking-[-0.03em] text-slate-950">
+                    Aucun envoi reçu pour le moment
+                  </h2>
+                  <p className="mt-3 max-w-[56ch] text-sm leading-7 text-slate-600">
+                    Tant qu&apos;une journée n&apos;a pas été préparée puis envoyée vers le mobile,
+                    rien n&apos;apparaît ici. Dès qu&apos;une affectation sera publiée pour toi,
+                    cette page affichera le contenu utile du jour.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-[22px] border border-white/85 bg-white/90 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                    Statut
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">
+                    En attente d&apos;une journée envoyée
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    Aucun brief, aucune intervention et aucun repère mobile ne sont encore
+                    disponibles pour ce compte.
+                  </p>
+                </div>
+                <div className="rounded-[22px] border border-white/85 bg-white/90 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                    Ce qui apparaîtra ici
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    Activité du jour, éléments de brief, consignes terrain et informations utiles
+                    envoyées depuis le back-office.
+                  </p>
+                </div>
+              </div>
+            </article>
+          )}
         </section>
       </div>
     </main>

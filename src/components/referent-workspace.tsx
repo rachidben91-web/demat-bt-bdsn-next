@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AppShellHeader } from "@/components/app-shell-header";
+import { MobileDispatchPublishCard } from "@/components/mobile-dispatch-publish-card";
 import type { BtImportDayOverview } from "@/lib/bt-import-days";
 import { getModuleTheme } from "@/lib/module-theme";
 import { detectPrimaryBadge } from "@/lib/pdf-import/badges";
@@ -14,6 +15,7 @@ type ReferentWorkspaceProps = {
   headerDateTimeLabel: string;
   isSuperAdmin?: boolean;
   role: string | null;
+  technicians: Array<{ id: string; label: string; nni: string }>;
   userEmail: string | null;
   weatherGeneratedAtLabel?: string | null;
   weatherZones?: import("@/lib/weather").HeaderWeatherZone[];
@@ -150,6 +152,7 @@ export function ReferentWorkspace({
   headerDateTimeLabel,
   isSuperAdmin = false,
   role,
+  technicians,
   userEmail,
   weatherGeneratedAtLabel,
   weatherZones = [],
@@ -177,6 +180,18 @@ export function ReferentWorkspace({
   }, []);
 
   const technicianOptions = useMemo(() => getUniqueTechnicians(bts), [bts]);
+  const technicianDirectory = useMemo(() => {
+    return new Map(
+      technicians.flatMap((technician) => {
+        const labelKey = normalizeText(technician.label);
+        const nniKey = technician.nni.trim().toUpperCase();
+        return [
+          [labelKey, technician],
+          [nniKey, technician],
+        ];
+      }),
+    );
+  }, [technicians]);
 
   const filteredBts = useMemo(() => {
     return bts.filter((bt) => {
@@ -404,6 +419,23 @@ export function ReferentWorkspace({
                   const groupMembers = group.key === "UNASSIGNED" ? [] : group.label.split(" / ").filter(Boolean);
                   const visibleGroupMembers = isGroupExpanded ? groupMembers : groupMembers.slice(0, 2);
                   const hiddenGroupMembersCount = Math.max(0, groupMembers.length - visibleGroupMembers.length);
+                  const groupTechnicians =
+                    group.key === "UNASSIGNED"
+                      ? []
+                      : group.key
+                          .split("|")
+                          .map((memberKey) =>
+                            technicianDirectory.get(memberKey) ??
+                            technicianDirectory.get(normalizeText(memberKey)),
+                          )
+                          .filter((item): item is { id: string; label: string; nni: string } => Boolean(item));
+                  const groupBtPayload = group.entries.map((entry) => ({
+                    btId: entry.id,
+                    client: entry.client,
+                    localisation: entry.localisation,
+                    objet: entry.objet,
+                    pageStart: entry.pageStart,
+                  }));
 
                   return (
                     <article
@@ -563,6 +595,20 @@ export function ReferentWorkspace({
                       );
                     })}
                   </div>
+                  {groupTechnicians.length > 0 ? (
+                    <div className="mt-3">
+                      <MobileDispatchPublishCard
+                        btImportDayId={currentDay?.id ?? null}
+                        btPayload={groupBtPayload}
+                        missionDate={currentDay?.dayDate ?? new Date().toISOString().slice(0, 10)}
+                        siteCode={currentDay?.siteCode ?? null}
+                        technicians={groupTechnicians.map((technician) => ({
+                          id: technician.id,
+                          label: technician.label,
+                        }))}
+                      />
+                    </div>
+                  ) : null}
                     </article>
                   );
                 })}
