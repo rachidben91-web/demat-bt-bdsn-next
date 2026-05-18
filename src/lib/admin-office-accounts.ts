@@ -43,6 +43,7 @@ function mapOfficeAccountRow(item: OfficeAccountQueryRow): OfficeAccountAdminRow
     id: item.id,
     authUserId: item.auth_user_id,
     email: item.email,
+    loginIdentifier: item.login_identifier,
     fullName: item.full_name,
     technicianId: item.technician_id,
     technicianDisplayName: getTechnicianDisplayName(item.technicians),
@@ -66,7 +67,7 @@ export async function getOfficeAccounts(): Promise<OfficeAccountAdminRow[]> {
   const { data, error } = await supabase
     .from("office_accounts")
     .select(
-      "id, auth_user_id, email, full_name, technician_id, account_status, first_login, password_changed, can_access_office_app, can_access_terrain_app, office_role, terrain_role, created_at, updated_at, technicians(display_name), office_module_access(module_key, permission_level)",
+      "id, auth_user_id, email, login_identifier, full_name, technician_id, account_status, first_login, password_changed, can_access_office_app, can_access_terrain_app, office_role, terrain_role, created_at, updated_at, technicians(display_name), office_module_access(module_key, permission_level)",
     )
     .order("full_name", { ascending: true });
 
@@ -88,9 +89,32 @@ export async function getOfficeAccountById(
   const { data, error } = await supabase
     .from("office_accounts")
     .select(
-      "id, auth_user_id, email, full_name, technician_id, account_status, first_login, password_changed, can_access_office_app, can_access_terrain_app, office_role, terrain_role, created_at, updated_at, technicians(display_name), office_module_access(module_key, permission_level)",
+      "id, auth_user_id, email, login_identifier, full_name, technician_id, account_status, first_login, password_changed, can_access_office_app, can_access_terrain_app, office_role, terrain_role, created_at, updated_at, technicians(display_name), office_module_access(module_key, permission_level)",
     )
     .eq("id", id)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return mapOfficeAccountRow(data as OfficeAccountQueryRow);
+}
+
+export async function getOfficeAccountByTechnicianId(
+  technicianId: string,
+): Promise<OfficeAccountAdminRow | null> {
+  if (!isSupabaseConfigured()) {
+    return null;
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("office_accounts")
+    .select(
+      "id, auth_user_id, email, login_identifier, full_name, technician_id, account_status, first_login, password_changed, can_access_office_app, can_access_terrain_app, office_role, terrain_role, created_at, updated_at, technicians(display_name), office_module_access(module_key, permission_level)",
+    )
+    .eq("technician_id", technicianId)
     .maybeSingle();
 
   if (error || !data) {

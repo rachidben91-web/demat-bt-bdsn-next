@@ -27,6 +27,19 @@ import {
 
 type AccessFormProps = {
   account?: OfficeAccountAdminRow | null;
+  cancelHref?: string;
+  cancelLabel?: string;
+  initialValues?: {
+    accountStatus?: string;
+    canAccessOfficeApp?: boolean;
+    canAccessTerrainApp?: boolean;
+    email?: string;
+    fullName?: string;
+    loginIdentifier?: string | null;
+    officeRole?: string | null;
+    technicianId?: string | null;
+    terrainRole?: string | null;
+  };
   mode?: "create" | "edit";
   technicians: TechnicianAccessCandidate[];
 };
@@ -43,6 +56,9 @@ function fieldClassName() {
 
 export function AccessForm({
   account,
+  cancelHref = "/admin/acces",
+  cancelLabel = "Retour a la liste",
+  initialValues,
   mode = "create",
   technicians,
 }: AccessFormProps) {
@@ -66,7 +82,7 @@ export function AccessForm({
           Nom complet
           <input
             className={fieldClassName()}
-            defaultValue={account?.fullName ?? ""}
+            defaultValue={account?.fullName ?? initialValues?.fullName ?? ""}
             name="full_name"
             required
           />
@@ -76,7 +92,7 @@ export function AccessForm({
           Email de connexion
           <input
             className={fieldClassName()}
-            defaultValue={account?.email ?? ""}
+            defaultValue={account?.email ?? initialValues?.email ?? ""}
             name="email"
             required
             type="email"
@@ -84,10 +100,20 @@ export function AccessForm({
         </label>
 
         <label className="text-sm font-semibold text-slate-700">
+          Identifiant de connexion
+          <input
+            className={fieldClassName()}
+            defaultValue={account?.loginIdentifier ?? initialValues?.loginIdentifier ?? ""}
+            name="login_identifier"
+            placeholder="ex. h26975"
+          />
+        </label>
+
+        <label className="text-sm font-semibold text-slate-700">
           Technicien lie
           <select
             className={fieldClassName()}
-            defaultValue={account?.technicianId ?? ""}
+            defaultValue={account?.technicianId ?? initialValues?.technicianId ?? ""}
             name="technician_id"
           >
             <option value="">Compte externe / pas de liaison</option>
@@ -103,7 +129,7 @@ export function AccessForm({
           Etat du compte
           <select
             className={fieldClassName()}
-            defaultValue={account?.accountStatus ?? "active"}
+            defaultValue={account?.accountStatus ?? initialValues?.accountStatus ?? "active"}
             name="account_status"
           >
             {OFFICE_ACCOUNT_STATUS_OPTIONS.map((status) => (
@@ -118,7 +144,7 @@ export function AccessForm({
           Role bureau
           <select
             className={fieldClassName()}
-            defaultValue={account?.officeRole ?? "team_lead"}
+            defaultValue={account?.officeRole ?? initialValues?.officeRole ?? "team_lead"}
             name="office_role"
           >
             <option value="">Aucun</option>
@@ -134,7 +160,7 @@ export function AccessForm({
           Role terrain
           <select
             className={fieldClassName()}
-            defaultValue={account?.terrainRole ?? ""}
+            defaultValue={account?.terrainRole ?? initialValues?.terrainRole ?? ""}
             name="terrain_role"
           >
             <option value="">Aucun</option>
@@ -150,7 +176,7 @@ export function AccessForm({
       <div className="grid gap-3 rounded-[24px] bg-slate-50 p-5 sm:grid-cols-2">
         <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
           <input
-            defaultChecked={account?.canAccessOfficeApp ?? true}
+            defaultChecked={account?.canAccessOfficeApp ?? initialValues?.canAccessOfficeApp ?? true}
             name="can_access_office_app"
             type="checkbox"
           />
@@ -158,7 +184,7 @@ export function AccessForm({
         </label>
         <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
           <input
-            defaultChecked={account?.canAccessTerrainApp ?? false}
+            defaultChecked={account?.canAccessTerrainApp ?? initialValues?.canAccessTerrainApp ?? false}
             name="can_access_terrain_app"
             type="checkbox"
           />
@@ -237,9 +263,9 @@ export function AccessForm({
         </button>
         <Link
           className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700"
-          href="/admin/acces"
+          href={cancelHref}
         >
-          Retour a la liste
+          {cancelLabel}
         </Link>
       </div>
     </form>

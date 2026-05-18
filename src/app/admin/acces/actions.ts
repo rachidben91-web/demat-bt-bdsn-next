@@ -37,6 +37,15 @@ function toOptionalString(value: FormDataEntryValue | null) {
   return text.length > 0 ? text : null;
 }
 
+function normalizeLoginIdentifier(value: FormDataEntryValue | null) {
+  const text = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "");
+
+  return text.length > 0 ? text : null;
+}
+
 function toBoolean(value: FormDataEntryValue | null) {
   return value === "on";
 }
@@ -85,6 +94,7 @@ export async function createOfficeAccessAction(
   try {
     const fullName = toRequiredString(formData.get("full_name"), "Nom complet");
     const email = toRequiredString(formData.get("email"), "Email").toLowerCase();
+    const loginIdentifier = normalizeLoginIdentifier(formData.get("login_identifier"));
     const technicianId = toOptionalString(formData.get("technician_id"));
     const officeRole = normalizeOfficeRole(formData.get("office_role"));
     const terrainRole = normalizeTerrainRole(formData.get("terrain_role"));
@@ -152,6 +162,7 @@ export async function createOfficeAccessAction(
       .insert({
         auth_user_id: authUserId,
         email,
+        login_identifier: loginIdentifier,
         full_name: fullName,
         technician_id: technicianId,
         account_status: accountStatus,
@@ -239,6 +250,7 @@ export async function updateOfficeAccessAction(
     const authUserId = toRequiredString(formData.get("auth_user_id"), "Utilisateur Auth");
     const fullName = toRequiredString(formData.get("full_name"), "Nom complet");
     const email = toRequiredString(formData.get("email"), "Email").toLowerCase();
+    const loginIdentifier = normalizeLoginIdentifier(formData.get("login_identifier"));
     const technicianId = toOptionalString(formData.get("technician_id"));
     const officeRole = normalizeOfficeRole(formData.get("office_role"));
     const terrainRole = normalizeTerrainRole(formData.get("terrain_role"));
@@ -301,6 +313,7 @@ export async function updateOfficeAccessAction(
       .from("office_accounts")
       .update({
         email,
+        login_identifier: loginIdentifier,
         full_name: fullName,
         technician_id: technicianId,
         account_status: accountStatus,

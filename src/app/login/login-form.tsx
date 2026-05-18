@@ -1,27 +1,40 @@
 "use client";
 
 import { useActionState } from "react";
-import { loginAction, type LoginFormState } from "@/app/login/actions";
+import {
+  loginAction,
+  terrainLoginAction,
+  type LoginFormState,
+} from "@/app/login/actions";
+
+type LoginFormProps = {
+  submitLabel?: string;
+  variant?: "office" | "terrain";
+};
 
 const initialState: LoginFormState = {
   error: null,
 };
 
-export function LoginForm() {
-  const [state, formAction, pending] = useActionState(loginAction, initialState);
+export function LoginForm({
+  submitLabel = "Se connecter",
+  variant = "office",
+}: LoginFormProps) {
+  const action = variant === "terrain" ? terrainLoginAction : loginAction;
+  const [state, formAction, pending] = useActionState(action, initialState);
 
   return (
     <form action={formAction} className="space-y-5">
       <div>
-        <label className="block text-sm font-semibold text-slate-800" htmlFor="email">
-          Email
+        <label className="block text-sm font-semibold text-slate-800" htmlFor="identifier">
+          Email ou identifiant
         </label>
         <input
           className="mt-2 w-full rounded-2xl border border-[#e8e1d8] bg-[#f7f3ee] px-4 py-3.5 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#d83a2f] focus:bg-white"
-          id="email"
-          name="email"
-          placeholder="prenom@dmt.vlg"
-          type="email"
+          id="identifier"
+          name="identifier"
+          placeholder="prenom@dmt.vlg ou h26975"
+          type="text"
         />
       </div>
 
@@ -52,7 +65,7 @@ export function LoginForm() {
         disabled={pending}
         type="submit"
       >
-        {pending ? "Connexion..." : "Se connecter"}
+        {pending ? "Connexion..." : submitLabel}
       </button>
 
       <p className="text-center text-sm text-slate-400">Mot de passe oublié ?</p>

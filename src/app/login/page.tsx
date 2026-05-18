@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Image from "next/image";
 import { LoginForm } from "@/app/login/login-form";
-import { getCurrentAuthContext, getDefaultOfficePath } from "@/lib/auth";
+import { getCurrentAuthContext, getDefaultAppPath } from "@/lib/auth";
 
 export default async function LoginPage() {
   const auth = await getCurrentAuthContext();
@@ -10,9 +10,9 @@ export default async function LoginPage() {
     auth.user &&
     (auth.role === "admin" ||
       (auth.officeAccount?.accountStatus === "active" &&
-        auth.officeAccount.canAccessOfficeApp))
+        (auth.officeAccount.canAccessOfficeApp || auth.officeAccount.canAccessTerrainApp)))
   ) {
-    redirect(getDefaultOfficePath(auth) ?? "/");
+    redirect(getDefaultAppPath(auth) ?? "/");
   }
 
   return (
@@ -43,7 +43,7 @@ export default async function LoginPage() {
                   DEMAT-BT
                 </h1>
                 <p className="mt-6 max-w-[24ch] text-base leading-7 text-blue-50/86">
-                  Connexion sécurisée à l’espace bureau.
+                  Connexion sécurisée à l&apos;espace bureau et à l&apos;application terrain.
                 </p>
               </div>
 
@@ -64,15 +64,16 @@ export default async function LoginPage() {
               Bonjour
             </h2>
             <p className="mt-4 text-base leading-7 text-slate-500">
-              Connecte-toi avec ton compte bureau.
+              Connecte-toi avec ton email ou ton identifiant technicien.
             </p>
             <div className="mt-9">
               {auth.user &&
               auth.role !== "admin" &&
-              !auth.officeAccount?.canAccessOfficeApp ? (
+              !auth.officeAccount?.canAccessOfficeApp &&
+              !auth.officeAccount?.canAccessTerrainApp ? (
                 <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                  Compte connecté mais aucun accès bureau actif n&apos;a été trouvé. Vérifie
-                  la table
+                  Compte connecté mais aucun accès bureau ou terrain actif n&apos;a été trouvé.
+                  Vérifie la table
                   <span className="mx-1 font-semibold">office_accounts</span>
                   pour cet utilisateur.
                 </div>

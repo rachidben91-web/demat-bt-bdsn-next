@@ -129,6 +129,9 @@ export default async function AdminAccessPage() {
                       <td className="px-4 py-4">
                         <p className="font-semibold text-slate-950">{account.fullName}</p>
                         <p className="mt-1 text-slate-500">{account.email}</p>
+                        <p className="mt-1 text-xs text-slate-400">
+                          Identifiant : {account.loginIdentifier ?? "—"}
+                        </p>
                       </td>
                       <td className="px-4 py-4 text-slate-600">
                         {accessLabel(account.canAccessOfficeApp, account.canAccessTerrainApp)}

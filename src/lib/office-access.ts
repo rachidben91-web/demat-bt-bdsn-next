@@ -78,6 +78,7 @@ export type OfficeAccountRow = {
   id: string;
   auth_user_id: string;
   email: string;
+  login_identifier: string | null;
   full_name: string;
   technician_id: string | null;
   account_status: OfficeAccountStatus;
@@ -95,6 +96,7 @@ export type OfficeAccountAdminRow = {
   id: string;
   authUserId: string;
   email: string;
+  loginIdentifier: string | null;
   fullName: string;
   technicianId: string | null;
   technicianDisplayName: string | null;

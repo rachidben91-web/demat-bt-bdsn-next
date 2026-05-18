@@ -19,6 +19,8 @@ const initialState: CreateOfficeAccessFormState = {
 type AccessLifecycleActionsProps = {
   accountId: string;
   accountStatus: OfficeAccountStatus;
+  returnHref?: string;
+  returnLabel?: string;
 };
 
 function Feedback({
@@ -48,6 +50,8 @@ function Feedback({
 export function AccessLifecycleActions({
   accountId,
   accountStatus,
+  returnHref = "/admin/acces",
+  returnLabel = "Retour a la liste",
 }: AccessLifecycleActionsProps) {
   const deactivateWithId = deactivateOfficeAccessAction.bind(null, accountId);
   const reactivateWithId = reactivateOfficeAccessAction.bind(null, accountId);
@@ -111,9 +115,9 @@ export function AccessLifecycleActions({
 
         <Link
           className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700"
-          href="/admin/acces"
+          href={returnHref}
         >
-          Retour a la liste
+          {returnLabel}
         </Link>
       </div>
 
