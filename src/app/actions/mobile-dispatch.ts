@@ -12,10 +12,38 @@ export type MobileDispatchActionState = {
 
 type PublishPayloadBt = {
   btId: string;
+  atNum: string;
   client: string;
+  designation: string;
+  docs: Array<{
+    page: number;
+    type: string;
+  }>;
+  duree: string;
   localisation: string;
   objet: string;
   pageStart: number;
+  analyseDesRisques: string;
+  observations: string;
+};
+
+type SupportDayLookupRow = {
+  id: string;
+  global_observation: string | null;
+};
+
+type SupportEntryLookupRow = {
+  technician_id: string;
+  activity_id: string | null;
+  observation: string | null;
+  brief_agency: string | null;
+  brief_remote: string | null;
+  gtv: string | null;
+};
+
+type ActivityLookupRow = {
+  id: string;
+  label: string;
 };
 
 function parseJson<T>(value: FormDataEntryValue | null, fallback: T): T {
@@ -52,6 +80,32 @@ function getActivitySummary(btCount: number) {
   }
 
   return `${btCount} interventions transmises`;
+}
+
+function compactText(value: string | null | undefined) {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function formatSupportBrief(options: {
+  activityLabel?: string | null;
+  briefAgency?: string | null;
+  briefRemote?: string | null;
+  globalObservation?: string | null;
+  gtv?: string | null;
+  observation?: string | null;
+}) {
+  const lines = [
+    options.activityLabel ? `Activite du jour : ${options.activityLabel}` : null,
+    compactText(options.observation) ? `Observation terrain : ${compactText(options.observation)}` : null,
+    compactText(options.briefAgency) ? `Brief agence : ${compactText(options.briefAgency)}` : null,
+    compactText(options.briefRemote) ? `Brief distance : ${compactText(options.briefRemote)}` : null,
+    compactText(options.gtv) ? `GRV : ${compactText(options.gtv)}` : null,
+    compactText(options.globalObservation)
+      ? `Consigne generale : ${compactText(options.globalObservation)}`
+      : null,
+  ].filter((line): line is string => Boolean(line));
+
+  return lines.join("\n");
 }
 
 export async function publishMobileDispatchAction(
@@ -118,6 +172,56 @@ export async function publishMobileDispatchAction(
       throw new Error(accountError.message);
     }
 
+    const { data: supportDayRow, error: supportDayError } = await adminSupabase
+      .from("support_days")
+      .select("id, global_observation")
+      .eq("day_date", missionDate)
+      .maybeSingle<SupportDayLookupRow>();
+
+    if (supportDayError) {
+      throw new Error(supportDayError.message);
+    }
+
+    const supportDayId = supportDayRow?.id ?? null;
+    let supportEntriesByTechnician = new Map<string, SupportEntryLookupRow>();
+    let activityLabelById = new Map<string, string>();
+
+    if (supportDayId) {
+      const { data: supportEntries, error: supportEntriesError } = await adminSupabase
+        .from("support_day_entries")
+        .select("technician_id, activity_id, observation, brief_agency, brief_remote, gtv")
+        .eq("support_day_id", supportDayId)
+        .in("technician_id", technicianIds);
+
+      if (supportEntriesError) {
+        throw new Error(supportEntriesError.message);
+      }
+
+      supportEntriesByTechnician = new Map(
+        (supportEntries as SupportEntryLookupRow[] | null | undefined)?.map((row) => [
+          row.technician_id,
+          row,
+        ]) ?? [],
+      );
+
+      const activityIds = [...new Set((supportEntries ?? []).map((row) => row.activity_id).filter(Boolean))];
+
+      if (activityIds.length > 0) {
+        const { data: activityRows, error: activityRowsError } = await adminSupabase
+          .from("activity_definitions")
+          .select("id, label")
+          .in("id", activityIds);
+
+        if (activityRowsError) {
+          throw new Error(activityRowsError.message);
+        }
+
+        activityLabelById = new Map(
+          ((activityRows as ActivityLookupRow[] | null | undefined) ?? []).map((row) => [row.id, row.label]),
+        );
+      }
+    }
+
     const accountByTechnicianId = new Map(
       (accountRows ?? [])
         .filter((row) => row.can_access_terrain_app && row.technician_id)
@@ -132,6 +236,7 @@ export async function publishMobileDispatchAction(
         published_by_email: publishedByEmail,
         published_by_user_id: auth.user?.id ?? null,
         status: "published",
+        support_day_id: supportDayId,
       })
       .select("id")
       .single();
@@ -150,6 +255,10 @@ export async function publishMobileDispatchAction(
 
     const publishedAt = new Date().toISOString();
     const itemRows = (technicianRows ?? []).map((technician) => {
+      const supportEntry = supportEntriesByTechnician.get(technician.id);
+      const activityLabel = supportEntry?.activity_id
+        ? (activityLabelById.get(supportEntry.activity_id) ?? null)
+        : null;
       const workMode =
         technician.ptc && technician.ptd
           ? "PTC-PTD"
@@ -170,7 +279,15 @@ export async function publishMobileDispatchAction(
           technician.managers as { name: string | null } | { name: string | null }[] | null,
         ),
         mission_date: missionDate,
-        observation: null,
+        observation:
+          formatSupportBrief({
+            activityLabel,
+            briefAgency: supportEntry?.brief_agency ?? null,
+            briefRemote: supportEntry?.brief_remote ?? null,
+            globalObservation: supportDayRow?.global_observation ?? null,
+            gtv: supportEntry?.gtv ?? null,
+            observation: supportEntry?.observation ?? null,
+          }) || null,
         office_account_id: accountByTechnicianId.get(technician.id) ?? null,
         published_at: publishedAt,
         site_code: siteCode,

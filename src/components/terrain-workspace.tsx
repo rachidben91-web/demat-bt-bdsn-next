@@ -64,6 +64,36 @@ function departureInstructionLabel(value: MobileDispatchItem["departureInstructi
   return "Depart a confirmer";
 }
 
+function compactText(value: string | null | undefined) {
+  return (value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function formatDocumentSummary(
+  docs: Array<{
+    page: number;
+    type: string;
+  }>,
+) {
+  if (docs.length === 0) {
+    return "Aucun document annexe";
+  }
+
+  const counts = docs.reduce<Record<string, number>>((accumulator, doc) => {
+    const key = doc.type.trim().toUpperCase();
+
+    if (!key) {
+      return accumulator;
+    }
+
+    accumulator[key] = (accumulator[key] ?? 0) + 1;
+    return accumulator;
+  }, {});
+
+  return Object.entries(counts)
+    .map(([type, count]) => `${type}${count > 1 ? ` x${count}` : ""}`)
+    .join(" • ");
+}
+
 export function TerrainWorkspace({
   currentDateLabel,
   loginIdentifier,
@@ -176,6 +206,17 @@ export function TerrainWorkspace({
                 </div>
               </div>
 
+              {compactText(mobileDispatch.observation) ? (
+                <div className="mt-4 rounded-[24px] border border-cyan-200 bg-cyan-50/80 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-700">
+                    Brief du jour
+                  </p>
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
+                    {mobileDispatch.observation}
+                  </p>
+                </div>
+              ) : null}
+
               <div className="mt-4 rounded-[24px] border border-white/80 bg-white/92 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
                   Interventions transmises
@@ -188,19 +229,67 @@ export function TerrainWorkspace({
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-sm font-semibold text-slate-950">{bt.btId}</p>
-                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                          Page {bt.pageStart}
-                        </span>
+                        <div className="flex flex-wrap gap-2">
+                          {compactText(bt.atNum) ? (
+                            <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">
+                              AT {bt.atNum}
+                            </span>
+                          ) : null}
+                          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                            Page {bt.pageStart}
+                          </span>
+                        </div>
                       </div>
                       <p className="mt-2 text-sm font-medium text-slate-800">
                         {bt.objet || "Objet non renseigne"}
                       </p>
+                      {compactText(bt.designation) ? (
+                        <p className="mt-1 text-sm text-slate-600">{bt.designation}</p>
+                      ) : null}
                       <p className="mt-1 text-sm text-slate-600">
                         {bt.client || "Client non renseigne"}
                       </p>
                       <p className="mt-1 text-sm text-slate-500">
                         {bt.localisation || "Localisation non renseignee"}
                       </p>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        <div className="rounded-2xl border border-white/80 bg-white/80 px-3 py-2">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                            Duree
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-slate-800">
+                            {compactText(bt.duree) || "Non renseignee"}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-white/80 bg-white/80 px-3 py-2">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                            Documents
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-slate-800">
+                            {formatDocumentSummary(bt.docs)}
+                          </p>
+                        </div>
+                      </div>
+                      {compactText(bt.analyseDesRisques) ? (
+                        <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50/80 px-3 py-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-700">
+                            Analyse des risques
+                          </p>
+                          <p className="mt-1 text-sm leading-6 text-amber-950">
+                            {bt.analyseDesRisques}
+                          </p>
+                        </div>
+                      ) : null}
+                      {compactText(bt.observations) ? (
+                        <div className="mt-3 rounded-2xl border border-slate-200 bg-white/85 px-3 py-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                            Observations
+                          </p>
+                          <p className="mt-1 text-sm leading-6 text-slate-700">
+                            {bt.observations}
+                          </p>
+                        </div>
+                      ) : null}
                     </article>
                   ))}
                 </div>

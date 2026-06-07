@@ -8,10 +8,19 @@ export type DepartureInstruction = "agency" | "direct" | "confirm";
 
 export type MobileDispatchBtPayload = {
   btId: string;
+  atNum: string;
   client: string;
+  designation: string;
+  docs: Array<{
+    page: number;
+    type: string;
+  }>;
+  duree: string;
   localisation: string;
   objet: string;
   pageStart: number;
+  analyseDesRisques: string;
+  observations: string;
 };
 
 export type MobileDispatchItem = {
@@ -76,10 +85,32 @@ function parseBtPayload(value: unknown): MobileDispatchBtPayload[] {
 
       return {
         btId: typeof candidate.btId === "string" ? candidate.btId : "",
+        atNum: typeof candidate.atNum === "string" ? candidate.atNum : "",
         client: typeof candidate.client === "string" ? candidate.client : "",
+        designation: typeof candidate.designation === "string" ? candidate.designation : "",
+        docs: Array.isArray(candidate.docs)
+          ? candidate.docs
+              .map((doc) => {
+                if (!doc || typeof doc !== "object") {
+                  return null;
+                }
+
+                const typedDoc = doc as Record<string, unknown>;
+
+                return {
+                  page: typeof typedDoc.page === "number" ? typedDoc.page : 0,
+                  type: typeof typedDoc.type === "string" ? typedDoc.type : "",
+                };
+              })
+              .filter((doc): doc is { page: number; type: string } => Boolean(doc?.type))
+          : [],
+        duree: typeof candidate.duree === "string" ? candidate.duree : "",
         localisation: typeof candidate.localisation === "string" ? candidate.localisation : "",
         objet: typeof candidate.objet === "string" ? candidate.objet : "",
         pageStart: typeof candidate.pageStart === "number" ? candidate.pageStart : 0,
+        analyseDesRisques:
+          typeof candidate.analyseDesRisques === "string" ? candidate.analyseDesRisques : "",
+        observations: typeof candidate.observations === "string" ? candidate.observations : "",
       };
     })
     .filter((item): item is MobileDispatchBtPayload => Boolean(item?.btId));

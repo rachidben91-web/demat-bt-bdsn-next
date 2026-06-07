@@ -437,10 +437,16 @@ export function ReferentWorkspace({
                     .filter((item): item is MobileDispatchStatusSnapshot => Boolean(item));
                   const groupBtPayload = group.entries.map((entry) => ({
                     btId: entry.id,
+                    atNum: entry.atNum,
                     client: entry.client,
+                    designation: entry.designation,
+                    docs: entry.docs,
+                    duree: entry.duree,
                     localisation: entry.localisation,
                     objet: entry.objet,
                     pageStart: entry.pageStart,
+                    analyseDesRisques: entry.analyseDesRisques,
+                    observations: entry.observations,
                   }));
 
                   return (

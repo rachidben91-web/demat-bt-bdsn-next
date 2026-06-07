@@ -11,10 +11,19 @@ type MobileDispatchPublishCardProps = {
   btImportDayId: string | null;
   btPayload: Array<{
     btId: string;
+    atNum: string;
     client: string;
+    designation: string;
+    docs: Array<{
+      page: number;
+      type: string;
+    }>;
+    duree: string;
     localisation: string;
     objet: string;
     pageStart: number;
+    analyseDesRisques: string;
+    observations: string;
   }>;
   missionDate: string;
   siteCode: string | null;
