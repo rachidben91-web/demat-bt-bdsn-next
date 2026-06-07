@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   createActivityDefinition,
@@ -245,7 +246,12 @@ export function SupportJourneeWorkspace({
   const [appliedHistoryEndDate, setAppliedHistoryEndDate] = useState("");
   const [activitySearch, setActivitySearch] = useState("");
   const [assignments, setAssignments] = useState<EditableAssignment[]>(dailyAssignments);
+  const [savedAssignments, setSavedAssignments] =
+    useState<EditableAssignment[]>(dailyAssignments);
   const [globalObservation, setGlobalObservation] = useState(
+    supportSummary.globalObservation,
+  );
+  const [savedGlobalObservation, setSavedGlobalObservation] = useState(
     supportSummary.globalObservation,
   );
   const [editStatus, setEditStatus] = useState(supportSummary.editStatus);
@@ -275,8 +281,8 @@ export function SupportJourneeWorkspace({
     source === "supabase" && (!lockedBy || isLockedByCurrentUser);
   const canEdit = source === "mock" || isLockedByCurrentUser;
   const hasUnsavedChanges =
-    JSON.stringify(assignments) !== JSON.stringify(dailyAssignments) ||
-    globalObservation !== supportSummary.globalObservation;
+    JSON.stringify(assignments) !== JSON.stringify(savedAssignments) ||
+    globalObservation !== savedGlobalObservation;
   const availableDateMap = new Map(
     availableDates.map((item: AvailableSupportDay) => [item.date, item.hasData]),
   );
@@ -413,6 +419,8 @@ export function SupportJourneeWorkspace({
   function handleSave() {
     if (source === "mock") {
       setStatusMessage("Mode maquette : modifications conservees localement.");
+      setSavedAssignments(assignments);
+      setSavedGlobalObservation(globalObservation);
       setLastUpdate("Brouillon local");
       return;
     }
@@ -442,6 +450,11 @@ export function SupportJourneeWorkspace({
       );
 
       syncActionResult(result);
+
+      if (result.ok) {
+        setSavedAssignments(assignments);
+        setSavedGlobalObservation(globalObservation);
+      }
     });
   }
 
@@ -558,12 +571,23 @@ export function SupportJourneeWorkspace({
     <main className={cx("min-h-screen px-4 py-4 text-slate-900 sm:px-6 lg:px-8", supportTheme.pageBackgroundClassName)}>
       <section className="support-print-sheet">
         <header className="support-print-header">
-          <div>
-            <p className="support-print-kicker">Support journee - Format A3 portrait</p>
-            <h1>Liste agents / activites</h1>
-            <p>
-              {supportSummary.dateLabel} - {supportSummary.weekLabel}
-            </p>
+          <div className="support-print-title-block">
+            <Image
+              alt="DEMAT-BT"
+              className="support-print-logo"
+              height={31}
+              priority
+              unoptimized
+              src="/dashboard-topbar-logo.png"
+              width={118}
+            />
+            <div>
+              <p className="support-print-kicker">Support journee</p>
+              <h1>Liste agents / activites</h1>
+              <p>
+                {supportSummary.dateLabel} - {supportSummary.weekLabel}
+              </p>
+            </div>
           </div>
           <div className="support-print-meta">
             <p>Agents : {assignments.length}</p>
@@ -603,20 +627,20 @@ export function SupportJourneeWorkspace({
                   <td>{assignment.rank}</td>
                   <td className="support-print-agent">{assignment.agent}</td>
                   <td>{printableValue(assignment.workMode) || "-"}</td>
-                  <td>
-                    {assignment.activity ? (
-                      <span
-                        className="support-print-activity"
-                        style={{
-                          backgroundColor: activity?.color ?? "#e5e7eb",
-                          color: getContrastColor(activity?.color ?? "#e5e7eb"),
-                        }}
-                      >
-                        {assignment.activity}
-                      </span>
-                    ) : (
-                      "-"
-                    )}
+                  <td
+                    className="support-print-activity-cell"
+                    style={
+                      assignment.activity
+                        ? {
+                            backgroundColor: activity?.color ?? "#e5e7eb",
+                            color: getContrastColor(activity?.color ?? "#e5e7eb"),
+                          }
+                        : undefined
+                    }
+                  >
+                    <span className="support-print-activity-label">
+                      {assignment.activity || "-"}
+                    </span>
                   </td>
                   <td>{printableValue(assignment.observations) || "-"}</td>
                   <td>{printableValue(assignment.briefAgence) || "-"}</td>
@@ -1090,7 +1114,7 @@ export function SupportJourneeWorkspace({
                           <td className="px-3 py-3 text-center text-slate-600 align-middle">
                             {assignment.workMode}
                           </td>
-                          <td className="px-3 py-3 align-middle">
+                          <td className="px-3 py-3 align-middle text-center">
                             {(() => {
                               const selectedActivity = assignment.activity
                                 ? activityByLabel.get(assignment.activity)
@@ -1098,7 +1122,7 @@ export function SupportJourneeWorkspace({
 
                               return (
                             <select
-                              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400 disabled:bg-slate-100 disabled:text-slate-400"
+                              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm outline-none focus:border-blue-400 disabled:bg-slate-100 disabled:text-slate-400"
                               disabled={!canEdit}
                               onChange={(event) =>
                                 updateAssignment(
@@ -1108,7 +1132,11 @@ export function SupportJourneeWorkspace({
                                 )
                               }
                               value={normalizeActivity(assignment.activity)}
-                              style={activitySelectStyle(selectedActivity)}
+                              style={{
+                                ...(activitySelectStyle(selectedActivity) ?? {}),
+                                textAlign: "center",
+                                textAlignLast: "center",
+                              }}
                             >
                               <option value="">—</option>
                               {activityDefinitions.map((activity) => (
