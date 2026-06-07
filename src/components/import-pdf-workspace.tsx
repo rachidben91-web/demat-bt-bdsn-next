@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { saveBtImportDayAction } from "@/app/actions/bt-import";
 import { AppShellHeader } from "@/components/app-shell-header";
 import { getModuleTheme } from "@/lib/module-theme";
+import { createDerivedBtPdfFiles } from "@/lib/pdf-import/derived-pdf";
 import { analyzePdfFile } from "@/lib/pdf-import/extractor";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import type { PdfImportAnalysis } from "@/lib/pdf-import/types";
@@ -32,14 +33,23 @@ function formatDateLabel(value: string | null) {
 }
 
 function buildStoragePath(dayIso: string, fileName: string) {
-  const safeName = fileName
+  const safeName = sanitizeFileSegment(fileName);
+
+  return `VLG/${dayIso}/${safeName || "journee.pdf"}`;
+}
+
+function sanitizeFileSegment(value: string) {
+  return value
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-zA-Z0-9._-]+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
+}
 
-  return `VLG/${dayIso}/${safeName || "journee.pdf"}`;
+function buildDerivedStoragePath(dayIso: string, btId: string) {
+  const safeBtId = sanitizeFileSegment(btId.toUpperCase());
+  return `VLG/${dayIso}/bt/${safeBtId || "BT"}.pdf`;
 }
 
 function badgeTone(type: string) {
@@ -118,8 +128,10 @@ export function ImportPdfWorkspace({
     startTransition(async () => {
       try {
         let storagePath: string | null = null;
+        let analysisToSave = analysis;
 
         if (selectedFile && analysis.importedDayIso) {
+          setStatus("Televersement du PDF source...");
           storagePath = buildStoragePath(analysis.importedDayIso, selectedFile.name);
           const supabase = createBrowserSupabaseClient();
           const { error: uploadError } = await supabase.storage
@@ -132,16 +144,83 @@ export function ImportPdfWorkspace({
           if (uploadError) {
             throw uploadError;
           }
+
+          setStatus("Preparation des PDFs derives par BT...");
+          const derivedPdfs = await createDerivedBtPdfFiles(selectedFile, analysis, setStatus);
+          const derivedPrefix = `VLG/${analysis.importedDayIso}/bt`;
+          const { data: existingDerivedFiles, error: listDerivedError } = await supabase.storage
+            .from("bt-import-pdfs")
+            .list(derivedPrefix, {
+              limit: 500,
+              sortBy: { column: "name", order: "asc" },
+            });
+
+          if (listDerivedError) {
+            throw listDerivedError;
+          }
+
+          const stalePaths = (existingDerivedFiles ?? [])
+            .filter((entry) => entry.name && !entry.name.endsWith("/"))
+            .map((entry) => `${derivedPrefix}/${entry.name}`);
+
+          if (stalePaths.length > 0) {
+            const { error: removeDerivedError } = await supabase.storage
+              .from("bt-import-pdfs")
+              .remove(stalePaths);
+
+            if (removeDerivedError) {
+              throw removeDerivedError;
+            }
+          }
+
+          const enrichedBts = [];
+
+          for (const [index, bt] of analysis.bts.entries()) {
+            const derivedPdf = derivedPdfs.get(bt.id);
+
+            if (!derivedPdf) {
+              enrichedBts.push(bt);
+              continue;
+            }
+
+            const derivedStoragePath = buildDerivedStoragePath(analysis.importedDayIso, bt.id);
+            setStatus(`Televersement du dossier ${bt.id} (${index + 1}/${analysis.bts.length})...`);
+            const { error: derivedUploadError } = await supabase.storage
+              .from("bt-import-pdfs")
+              .upload(derivedStoragePath, derivedPdf.bytes, {
+                upsert: true,
+                contentType: "application/pdf",
+              });
+
+            if (derivedUploadError) {
+              throw derivedUploadError;
+            }
+
+            enrichedBts.push({
+              ...bt,
+              derivedPdfStoragePath: derivedStoragePath,
+              derivedPdfPageCount: derivedPdf.pageCount,
+            });
+          }
+
+          analysisToSave = {
+            ...analysis,
+            bts: enrichedBts,
+          };
         }
 
-        const result = await saveBtImportDayAction(analysis, storagePath);
+        setStatus("Enregistrement de la journee...");
+        const result = await saveBtImportDayAction(analysisToSave, storagePath);
         setSaveMessage(result.message);
 
         if (result.ok) {
           setSavedDayDate(result.dayDate ?? null);
+          setAnalysis(analysisToSave);
+          setStatus("Journee enregistree avec ses dossiers BT derives.");
         }
       } catch (caughtError) {
         setError(caughtError instanceof Error ? caughtError.message : "Sauvegarde impossible.");
+        setStatus("La journee n'a pas pu etre enregistree.");
       }
     });
   }
@@ -276,6 +355,11 @@ export function ImportPdfWorkspace({
                             <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
                               Page {bt.pageStart}
                             </span>
+                            {bt.derivedPdfStoragePath ? (
+                              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                                PDF derive {bt.derivedPdfPageCount ?? bt.docs.length} page(s)
+                              </span>
+                            ) : null}
                           </div>
                           <p className="mt-3 text-sm leading-6 text-slate-600">
                             {bt.objet || "Objet non reconnu"}

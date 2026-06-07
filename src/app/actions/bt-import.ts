@@ -125,6 +125,8 @@ export async function saveBtImportDayAction(
             observations: bt.observations,
             team: bt.team,
             docs: bt.docs,
+            derived_pdf_storage_path: bt.derivedPdfStoragePath ?? null,
+            derived_pdf_page_count: bt.derivedPdfPageCount ?? null,
           })),
         );
 

@@ -253,10 +253,77 @@ async function countPageImages(page: PDFPageProxy, pdfJs: PdfJsModule) {
   }
 }
 
+function containsAny(text: string, values: string[]) {
+  return values.some((value) => text.includes(value));
+}
+
+function getPlanSignalScore(text: string) {
+  const strongSignals = [
+    "PLAN DE SITUATION",
+    "PLAN DE MASSE",
+    "PLAN D ENSEMBLE",
+    "PLAN D'ENSEMBLE",
+    "PLAN DE REPERAGE",
+    "PLAN DE REPEREMENT",
+    "PLAN DE LOCALISATION",
+    "PLAN DE DETAIL",
+    "VUE EN PLAN",
+    "PLAN TOPOGRAPHIQUE",
+    "PLAN DE RECOLEMENT",
+    "RESEAU GAZ",
+    "CROQUIS",
+    "EMPRISE",
+  ];
+  const mediumSignals = [
+    "ECHELLE",
+    "FORMAT A4",
+    "FORMAT A3",
+    "FORMAT A2",
+    "FORMAT A1",
+    "PAYSAGE",
+    "COMMUNE",
+    "CODE INSEE",
+    "LAMBERT",
+    "CARTOGRAPHIE",
+    "RECOLLEMENT",
+    "ALTIMETRIE",
+    "CANALISATION",
+    "TRONCON",
+    "NORD",
+    "X =",
+    "Y =",
+  ];
+
+  let score = 0;
+
+  for (const signal of strongSignals) {
+    if (text.includes(signal)) {
+      score += 3;
+    }
+  }
+
+  for (const signal of mediumSignals) {
+    if (text.includes(signal)) {
+      score += 1;
+    }
+  }
+
+  if (text.includes("PLAN")) {
+    score += 1;
+  }
+
+  if (text.includes("GRDF")) {
+    score += 1;
+  }
+
+  return score;
+}
+
 async function detectAttachmentType(page: PDFPageProxy, pdfJs: PdfJsModule): Promise<PdfAttachmentType> {
   const rawText = await extractFullPageText(page);
   const text = cleanUpper(rawText);
   const textLength = rawText.replace(/\s+/g, "").length;
+  const imageCount = await countPageImages(page, pdfJs);
 
   if (
     text.includes("PROCEDURE D'EXECUTION") ||
@@ -293,25 +360,30 @@ async function detectAttachmentType(page: PDFPageProxy, pdfJs: PdfJsModule): Pro
     return "STREET";
   }
 
-  if (
-    (text.includes("FORMAT") &&
-      text.includes("PAYSAGE") &&
-      (text.includes("A3") || text.includes("A2") || text.includes("A1"))) ||
-    (text.includes("ECHELLE") && text.includes("GRDF")) ||
-    (text.includes("LAMBERT") && text.includes("COMMUNE")) ||
-    (text.includes("CODE INSEE") && (text.includes("GRDF") || text.includes("COMMUNE"))) ||
-    text.includes("RECOLLEMENT") ||
-    text.includes("CARTOGRAPHIE")
-  ) {
+  if (getPlanSignalScore(text) >= 3) {
     return "PLAN";
   }
 
-  if (textLength < 150) {
-    const imageCount = await countPageImages(page, pdfJs);
+  if (
+    containsAny(text, [
+      "PHOTO",
+      "PHOTOS",
+      "PRISE DE VUE",
+      "REPORTAGE PHOTO",
+      "AVANT TRAVAUX",
+      "APRES TRAVAUX",
+      "AVANT / APRES",
+    ])
+  ) {
+    return "PHOTO";
+  }
 
-    if (imageCount > 0) {
-      return "PHOTO";
-    }
+  if (imageCount >= 2 && textLength < 900 && getPlanSignalScore(text) < 3) {
+    return "PHOTO";
+  }
+
+  if (textLength < 220 && imageCount > 0) {
+    return "PHOTO";
   }
 
   return "DOC";

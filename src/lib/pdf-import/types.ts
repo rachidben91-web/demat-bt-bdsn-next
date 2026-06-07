@@ -32,6 +32,8 @@ export type ExtractedBt = {
   observations: string;
   team: ExtractedTeamMember[];
   docs: ExtractedBtDocument[];
+  derivedPdfStoragePath?: string | null;
+  derivedPdfPageCount?: number | null;
 };
 
 export type PdfImportAnalysis = {

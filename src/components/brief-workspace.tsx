@@ -24,8 +24,17 @@ type BriefWorkspaceProps = {
 };
 
 type ViewerState = {
-  bt: ExtractedBt;
+  entries: Array<{
+    btId: string;
+    objet: string;
+    pdfPage: number;
+    sourcePage: number;
+    type: string;
+  }>;
   currentPage: number;
+  pdfStoragePath: string;
+  title: string;
+  subtitle: string;
 };
 
 type ViewerViewportSize = {
@@ -127,6 +136,39 @@ function normalizeText(value: string) {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
+}
+
+function buildViewerEntries(bts: ExtractedBt[], useSequentialPages = false) {
+  const uniqueEntries = new Map<
+    string,
+    {
+      btId: string;
+      objet: string;
+      pdfPage: number;
+      sourcePage: number;
+      type: string;
+    }
+  >();
+
+  for (const bt of bts) {
+    const sortedDocs = [...bt.docs].sort((left, right) => left.page - right.page);
+
+    for (const [index, doc] of sortedDocs.entries()) {
+      const key = `${doc.page}:${doc.type}`;
+
+      if (!uniqueEntries.has(key)) {
+        uniqueEntries.set(key, {
+          btId: bt.id,
+          objet: bt.objet,
+          pdfPage: useSequentialPages ? index + 1 : doc.page,
+          sourcePage: doc.page,
+          type: doc.type,
+        });
+      }
+    }
+  }
+
+  return [...uniqueEntries.values()].sort((left, right) => left.pdfPage - right.pdfPage);
 }
 
 function getScreenProfile(width: number): ScreenProfile {
@@ -270,10 +312,11 @@ export function BriefWorkspace({
       return [];
     }
 
-    return viewerState.bt.docs.map((doc) => doc.page).sort((left, right) => left - right);
+    return viewerState.entries.map((entry) => entry.pdfPage).sort((left, right) => left - right);
   }, [viewerState]);
 
-  const currentViewerDoc = viewerState?.bt.docs.find((doc) => doc.page === viewerState.currentPage) ?? null;
+  const currentViewerDoc =
+    viewerState?.entries.find((entry) => entry.pdfPage === viewerState.currentPage) ?? null;
   const isCompactView = viewMode === "compact";
   const isCategoryLayout = layoutMode === "category";
   const emptyStateSpanClassName =
@@ -319,7 +362,7 @@ export function BriefWorkspace({
     let cancelled = false;
 
     async function loadViewerDocument() {
-      if (!viewerState || !currentDay?.sourcePdfStoragePath) {
+      if (!viewerState?.pdfStoragePath) {
         return;
       }
 
@@ -330,7 +373,7 @@ export function BriefWorkspace({
         const supabase = createBrowserSupabaseClient();
         const { data: signedData, error } = await supabase.storage
           .from("bt-import-pdfs")
-          .createSignedUrl(currentDay.sourcePdfStoragePath, 3600);
+          .createSignedUrl(viewerState.pdfStoragePath, 3600);
 
         if (error || !signedData?.signedUrl) {
           throw error ?? new Error("URL signee introuvable.");
@@ -358,7 +401,7 @@ export function BriefWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [viewerState, currentDay?.sourcePdfStoragePath]);
+  }, [viewerState]);
 
   useEffect(() => {
     if (!viewerState) {
@@ -518,8 +561,53 @@ export function BriefWorkspace({
   }, [viewerState, pdfDocument, viewerViewportSize, viewerZoom]);
 
   function openViewer(bt: ExtractedBt, page: number) {
-    if (!currentDay?.sourcePdfStoragePath) {
+    const pdfStoragePath = bt.derivedPdfStoragePath ?? currentDay?.sourcePdfStoragePath;
+
+    if (!pdfStoragePath) {
+      setViewerError("Aucun PDF n'est disponible pour ce BT.");
+      return;
+    }
+
+    const usesDerivedPdf = Boolean(bt.derivedPdfStoragePath);
+    const entries = buildViewerEntries([bt], usesDerivedPdf);
+
+    if (entries.length === 0) {
+      setViewerError("Aucun document rattache a ce BT.");
+      return;
+    }
+
+    const initialPage =
+      entries.find((entry) => entry.sourcePage === page)?.pdfPage ?? entries[0]?.pdfPage ?? 1;
+
+    setSignedUrl(null);
+    setPdfDocument(null);
+    setViewerError(null);
+
+    startViewerTransition(() => {
+      setViewerZoom(1);
+      setIsViewerPanning(false);
+      setViewerState({
+        entries,
+        currentPage: initialPage,
+        pdfStoragePath,
+        title: bt.id,
+        subtitle: bt.objet || (usesDerivedPdf ? "Dossier PDF du BT" : "Documents du BT"),
+      });
+    });
+  }
+
+  function openGroupViewer(groupLabel: string, entries: ExtractedBt[]) {
+    const sourcePdfStoragePath = currentDay?.sourcePdfStoragePath;
+
+    if (!sourcePdfStoragePath) {
       setViewerError("Le PDF source n'est pas disponible pour cette journee.");
+      return;
+    }
+
+    const viewerEntries = buildViewerEntries(entries);
+
+    if (viewerEntries.length === 0) {
+      setViewerError("Aucun document rattache a cette selection.");
       return;
     }
 
@@ -531,8 +619,11 @@ export function BriefWorkspace({
       setViewerZoom(1);
       setIsViewerPanning(false);
       setViewerState({
-        bt,
-        currentPage: page,
+        entries: viewerEntries,
+        currentPage: viewerEntries[0]?.pdfPage ?? 1,
+        pdfStoragePath: sourcePdfStoragePath,
+        title: groupLabel,
+        subtitle: `${entries.length} BT · ${viewerEntries.length} page(s) utiles`,
       });
     });
   }
@@ -786,15 +877,7 @@ export function BriefWorkspace({
                         isCategoryLayout && "px-4 py-4 sm:px-5 sm:py-5",
                       )}
                     >
-                      <button
-                        className="flex w-full flex-wrap items-center justify-between gap-3 pb-3 text-left"
-                        onClick={() => {
-                          if (isCategoryLayout) {
-                            toggleGroup(group.key);
-                          }
-                        }}
-                        type="button"
-                      >
+                      <div className="flex w-full flex-wrap items-center justify-between gap-3 pb-3 text-left">
                         <div className="flex items-center gap-3">
                           {isCategoryLayout ? (
                             <span
@@ -819,13 +902,26 @@ export function BriefWorkspace({
                           <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
                             {group.entries.length} BT
                           </span>
+                          {group.entries.some((entry) => entry.docs.length > 0) ? (
+                            <button
+                              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-blue-200 hover:text-blue-700"
+                              onClick={() => openGroupViewer(group.label, group.entries)}
+                              type="button"
+                            >
+                              Dossier PDF
+                            </button>
+                          ) : null}
                           {isCategoryLayout ? (
-                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+                            <button
+                              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 transition hover:border-blue-200 hover:text-blue-700"
+                              onClick={() => toggleGroup(group.key)}
+                              type="button"
+                            >
                               {collapsedGroups[group.key] ? "Afficher" : "Reduire"}
-                            </span>
+                            </button>
                           ) : null}
                         </div>
-                      </button>
+                      </div>
 
                       <div
                         className={cx(
@@ -1077,7 +1173,7 @@ export function BriefWorkspace({
                               gridColumn: `span ${groupSpan} / span ${groupSpan}`,
                             }}
                           >
-                            <button className="flex w-full flex-wrap items-center justify-between gap-3 pb-3 text-left" type="button">
+                            <div className="flex w-full flex-wrap items-center justify-between gap-3 pb-3 text-left">
                               <div className="flex items-center gap-3">
                                 <div>
                                   <h3 className="text-[1.45rem] font-semibold tracking-tight text-slate-950">
@@ -1092,8 +1188,17 @@ export function BriefWorkspace({
                                 <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
                                   {group.entries.length} BT
                                 </span>
+                                {group.entries.some((entry) => entry.docs.length > 0) ? (
+                                  <button
+                                    className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-blue-200 hover:text-blue-700"
+                                    onClick={() => openGroupViewer(group.label, group.entries)}
+                                    type="button"
+                                  >
+                                    Dossier PDF
+                                  </button>
+                                ) : null}
                               </div>
-                            </button>
+                            </div>
 
                             <div
                               className="grid gap-3"
@@ -1314,7 +1419,7 @@ export function BriefWorkspace({
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-[1.45rem] font-semibold tracking-tight text-slate-950 sm:text-2xl">
-                    {viewerState.bt.id}
+                    {viewerState.title}
                   </h3>
                   {currentViewerDoc ? (
                     <span
@@ -1339,7 +1444,7 @@ export function BriefWorkspace({
                     </span>
                   ) : null}
                 </div>
-                <p className="mt-2 text-sm text-slate-500">{viewerState.bt.objet || "Document source"}</p>
+                <p className="mt-2 text-sm text-slate-500">{viewerState.subtitle || "Document source"}</p>
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -1391,7 +1496,7 @@ export function BriefWorkspace({
                     rel="noreferrer"
                     target="_blank"
                   >
-                    Ouvrir le PDF
+                    PDF journalier complet
                   </a>
                 ) : null}
                 <button
@@ -1439,7 +1544,7 @@ export function BriefWorkspace({
                   <p className="mt-3 text-sm text-slate-500">
                     Page {sortedViewerPages.indexOf(viewerState.currentPage) + 1} sur{" "}
                     {sortedViewerPages.length}
-                    {currentViewerDoc ? ` — ${currentViewerDoc.type}` : ""}
+                    {currentViewerDoc ? ` — ${currentViewerDoc.type} — ${currentViewerDoc.btId}` : ""}
                     {viewerZoom > 1 ? " — glisser pour se deplacer" : ""}
                   </p>
                 </div>

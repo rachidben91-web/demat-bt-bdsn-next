@@ -48,6 +48,8 @@ type BtImportEntryRow = {
   observations: string;
   team: unknown;
   docs: unknown;
+  derived_pdf_storage_path: string | null;
+  derived_pdf_page_count: number | null;
 };
 
 function mapDayRow(row: BtImportDayRow): BtImportDaySummary {
@@ -122,6 +124,8 @@ function mapEntryRow(row: BtImportEntryRow): ExtractedBt {
     observations: row.observations,
     team: parseTeam(row.team),
     docs: parseDocs(row.docs),
+    derivedPdfStoragePath: row.derived_pdf_storage_path,
+    derivedPdfPageCount: row.derived_pdf_page_count,
   };
 }
 
@@ -169,7 +173,7 @@ export async function getBtImportDayOverview(
   const { data: entriesData, error: entriesError } = await supabase
     .from("bt_import_entries")
     .select(
-      "bt_id, page_start, objet, date_prevue, client, localisation, at_num, designation, duree, analyse_des_risques, observations, team, docs",
+      "bt_id, page_start, objet, date_prevue, client, localisation, at_num, designation, duree, analyse_des_risques, observations, team, docs, derived_pdf_storage_path, derived_pdf_page_count",
     )
     .eq("import_day_id", currentDay.id)
     .order("page_start", { ascending: true });
