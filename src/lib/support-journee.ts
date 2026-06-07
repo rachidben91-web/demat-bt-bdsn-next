@@ -94,6 +94,7 @@ export type SupportJourneeData = {
     editStatus: string;
     server: string;
     weatherNote: string;
+    globalObservation: string;
     savedDayStatus: string;
     lockedBy: string | null;
     lockedAt: string | null;
@@ -224,6 +225,7 @@ function fallbackData(): SupportJourneeData {
       ...fallbackSupportSummary,
       dayId: null,
       dayDate: null,
+      globalObservation: "",
       lockedBy: null,
       lockedAt: null,
     },
@@ -591,6 +593,7 @@ export async function getSupportJourneeData(selectedDate?: string): Promise<Supp
         editStatus: supportDay?.status ?? "draft",
         server: supportDay?.server_label ?? "Supabase",
         weatherNote: weatherBundle.weatherNote || supportDay?.weather_note || "Aucune prevision disponible.",
+        globalObservation: supportDay?.global_observation ?? "",
         savedDayStatus: supportDay
           ? `Jour charge : ${formatDateInput(effectiveDate)} — ${entries.length} lignes`
           : `Jour non initialise : ${formatDateInput(effectiveDate)}`,

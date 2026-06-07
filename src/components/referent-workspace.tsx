@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AppShellHeader } from "@/components/app-shell-header";
 import { MobileDispatchPublishCard } from "@/components/mobile-dispatch-publish-card";
 import type { BtImportDayOverview } from "@/lib/bt-import-days";
+import type { MobileDispatchStatusSnapshot } from "@/lib/mobile-dispatch";
 import { getModuleTheme } from "@/lib/module-theme";
 import { detectPrimaryBadge } from "@/lib/pdf-import/badges";
 import type { ExtractedBt } from "@/lib/pdf-import/types";
@@ -14,6 +15,7 @@ type ReferentWorkspaceProps = {
   data: BtImportDayOverview;
   headerDateTimeLabel: string;
   isSuperAdmin?: boolean;
+  mobileDispatchStatuses?: Record<string, MobileDispatchStatusSnapshot>;
   role: string | null;
   technicians: Array<{ id: string; label: string; nni: string }>;
   userEmail: string | null;
@@ -151,6 +153,7 @@ export function ReferentWorkspace({
   data,
   headerDateTimeLabel,
   isSuperAdmin = false,
+  mobileDispatchStatuses = {},
   role,
   technicians,
   userEmail,
@@ -429,6 +432,9 @@ export function ReferentWorkspace({
                             technicianDirectory.get(normalizeText(memberKey)),
                           )
                           .filter((item): item is { id: string; label: string; nni: string } => Boolean(item));
+                  const groupDispatchStatuses = groupTechnicians
+                    .map((technician) => mobileDispatchStatuses[technician.id])
+                    .filter((item): item is MobileDispatchStatusSnapshot => Boolean(item));
                   const groupBtPayload = group.entries.map((entry) => ({
                     btId: entry.id,
                     client: entry.client,
@@ -600,6 +606,7 @@ export function ReferentWorkspace({
                       <MobileDispatchPublishCard
                         btImportDayId={currentDay?.id ?? null}
                         btPayload={groupBtPayload}
+                        dispatchStatuses={groupDispatchStatuses}
                         missionDate={currentDay?.dayDate ?? new Date().toISOString().slice(0, 10)}
                         siteCode={currentDay?.siteCode ?? null}
                         technicians={groupTechnicians.map((technician) => ({

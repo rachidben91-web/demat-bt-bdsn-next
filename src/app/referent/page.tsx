@@ -1,6 +1,7 @@
 import { ReferentWorkspace } from "@/components/referent-workspace";
 import { getReadableOfficeModules, requireOfficeModule } from "@/lib/auth";
 import { getBtImportDayOverview } from "@/lib/bt-import-days";
+import { getMobileDispatchStatusesForMissionDate } from "@/lib/mobile-dispatch";
 import { getSupportJourneeData } from "@/lib/support-journee";
 import { getSupportWeatherBundle } from "@/lib/weather";
 
@@ -20,6 +21,10 @@ export default async function ReferentPage({ searchParams }: ReferentPageProps) 
     getSupportJourneeData(selectedDate),
     getSupportWeatherBundle(selectedDate),
   ]);
+  const mobileDispatchStatuses = await getMobileDispatchStatusesForMissionDate(
+    data.currentDay?.dayDate ?? selectedDate,
+    supportData.technicians.map((technician) => technician.id),
+  );
   const headerDateTimeLabel = new Intl.DateTimeFormat("fr-FR", {
     weekday: "long",
     day: "numeric",
@@ -37,6 +42,7 @@ export default async function ReferentPage({ searchParams }: ReferentPageProps) 
       data={data}
       headerDateTimeLabel={headerDateTimeLabel}
       isSuperAdmin={auth.role === "admin"}
+      mobileDispatchStatuses={mobileDispatchStatuses}
       role={auth.role ?? auth.officeAccount?.officeRole ?? null}
       technicians={supportData.technicians.map((technician) => ({
         id: technician.id,

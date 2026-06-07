@@ -1,4 +1,5 @@
 const PARIS_TIME_ZONE = "Europe/Paris";
+const WEATHER_FETCH_TIMEOUT_MS = 4000;
 
 const SUPPORT_ZONES = [
   {
@@ -245,6 +246,7 @@ function weatherIcon(code: number | null | undefined) {
 
 async function fetchWeatherJson<T>(url: string) {
   const response = await fetch(url, {
+    signal: AbortSignal.timeout(WEATHER_FETCH_TIMEOUT_MS),
     next: { revalidate: 600 },
   });
 

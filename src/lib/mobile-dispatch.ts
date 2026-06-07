@@ -33,6 +33,15 @@ export type MobileDispatchItem = {
   workMode: string | null;
 };
 
+export type MobileDispatchStatusSnapshot = {
+  acknowledgedAt: string | null;
+  acknowledgedByEmail: string | null;
+  departureInstruction: DepartureInstruction;
+  publishedAt: string;
+  technicianId: string;
+  technicianName: string;
+};
+
 type MobileDispatchItemRow = {
   id: string;
   acknowledged_at: string | null;
@@ -137,4 +146,55 @@ export async function getLatestMobileDispatchForTechnician(
   }
 
   return mapMobileDispatchItem(data as MobileDispatchItemRow);
+}
+
+export async function getMobileDispatchStatusesForMissionDate(
+  missionDate: string,
+  technicianIds: string[] = [],
+): Promise<Record<string, MobileDispatchStatusSnapshot>> {
+  if (!isSupabaseConfigured() || !missionDate) {
+    return {};
+  }
+
+  const supabase = await getServerReader();
+  let query = supabase
+    .from("mobile_dispatch_items")
+    .select(
+      "acknowledged_at, acknowledged_by_email, departure_instruction, published_at, technician_id, technician_name",
+    )
+    .eq("mission_date", missionDate);
+
+  if (technicianIds.length > 0) {
+    query = query.in("technician_id", technicianIds);
+  }
+
+  const { data, error } = await query.order("published_at", { ascending: false });
+
+  if (error || !data) {
+    return {};
+  }
+
+  return data.reduce<Record<string, MobileDispatchStatusSnapshot>>((accumulator, row) => {
+    const technicianId = typeof row.technician_id === "string" ? row.technician_id : "";
+
+    if (!technicianId || accumulator[technicianId]) {
+      return accumulator;
+    }
+
+    accumulator[technicianId] = {
+      acknowledgedAt: typeof row.acknowledged_at === "string" ? row.acknowledged_at : null,
+      acknowledgedByEmail: typeof row.acknowledged_by_email === "string" ? row.acknowledged_by_email : null,
+      departureInstruction:
+        row.departure_instruction === "agency" ||
+        row.departure_instruction === "direct" ||
+        row.departure_instruction === "confirm"
+          ? row.departure_instruction
+          : "confirm",
+      publishedAt: typeof row.published_at === "string" ? row.published_at : "",
+      technicianId,
+      technicianName: typeof row.technician_name === "string" ? row.technician_name : "",
+    };
+
+    return accumulator;
+  }, {});
 }

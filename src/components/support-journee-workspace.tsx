@@ -93,6 +93,14 @@ function normalizeActivity(value: string | null) {
   return value ?? "";
 }
 
+function printableValue(value: string | null) {
+  if (!value || value === "—" || value === "â€”") {
+    return "";
+  }
+
+  return value;
+}
+
 function getContrastColor(hexColor: string) {
   const value = hexColor.replace("#", "");
 
@@ -237,6 +245,9 @@ export function SupportJourneeWorkspace({
   const [appliedHistoryEndDate, setAppliedHistoryEndDate] = useState("");
   const [activitySearch, setActivitySearch] = useState("");
   const [assignments, setAssignments] = useState<EditableAssignment[]>(dailyAssignments);
+  const [globalObservation, setGlobalObservation] = useState(
+    supportSummary.globalObservation,
+  );
   const [editStatus, setEditStatus] = useState(supportSummary.editStatus);
   const [lockedBy, setLockedBy] = useState(supportSummary.lockedBy);
   const [lockedAt, setLockedAt] = useState(supportSummary.lockedAt);
@@ -264,12 +275,17 @@ export function SupportJourneeWorkspace({
     source === "supabase" && (!lockedBy || isLockedByCurrentUser);
   const canEdit = source === "mock" || isLockedByCurrentUser;
   const hasUnsavedChanges =
-    JSON.stringify(assignments) !== JSON.stringify(dailyAssignments);
+    JSON.stringify(assignments) !== JSON.stringify(dailyAssignments) ||
+    globalObservation !== supportSummary.globalObservation;
   const availableDateMap = new Map(
     availableDates.map((item: AvailableSupportDay) => [item.date, item.hasData]),
   );
   const calendarDays = buildCalendarDays(visibleMonth);
   const activityByLabel = new Map(activityDefinitions.map((activity) => [activity.label, activity]));
+  const printGeneratedAt = new Intl.DateTimeFormat("fr-FR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date());
   const liveMetrics = assignments.reduce(
     (accumulator, assignment) => {
       const activity = assignment.activity ? activityByLabel.get(assignment.activity) : undefined;
@@ -278,9 +294,7 @@ export function SupportJourneeWorkspace({
         accumulator.absents += 1;
       } else if (activity?.status === "Present") {
         accumulator.presents += 1;
-      }
-
-      if (assignment.gtv === "Oui") {
+      } else if (activity?.status === "Greve") {
         accumulator.greve += 1;
       }
 
@@ -413,6 +427,7 @@ export function SupportJourneeWorkspace({
         {
           dayId: supportSummary.dayId,
           dayDate: currentDayDate,
+          globalObservation,
         },
         assignments.map((assignment) => ({
           id: assignment.id,
@@ -449,6 +464,7 @@ export function SupportJourneeWorkspace({
       })),
     );
       setStatusMessage("Journée vidée localement. Enregistrez pour confirmer.");
+    setGlobalObservation("");
   }
 
   function handleCreateActivity() {
@@ -534,9 +550,88 @@ export function SupportJourneeWorkspace({
     });
   }
 
+  function handlePrint() {
+    window.print();
+  }
+
   return (
     <main className={cx("min-h-screen px-4 py-4 text-slate-900 sm:px-6 lg:px-8", supportTheme.pageBackgroundClassName)}>
-      <div className="mx-auto max-w-[2360px]">
+      <section className="support-print-sheet">
+        <header className="support-print-header">
+          <div>
+            <p className="support-print-kicker">Support journee - Format A3 portrait</p>
+            <h1>Liste agents / activites</h1>
+            <p>
+              {supportSummary.dateLabel} - {supportSummary.weekLabel}
+            </p>
+          </div>
+          <div className="support-print-meta">
+            <p>Agents : {assignments.length}</p>
+            <p>Presents : {liveMetrics.presents}</p>
+            <p>Absents : {liveMetrics.absents}</p>
+            <p>Greve : {liveMetrics.greve}</p>
+            <p>Genere le {printGeneratedAt}</p>
+          </div>
+        </header>
+
+        <section className="support-print-comments">
+          <strong>Commentaires journee</strong>
+          <p>{printableValue(globalObservation) || "Aucun commentaire."}</p>
+        </section>
+
+        <table className="support-print-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Agent</th>
+              <th>PTC / PTD</th>
+              <th>Activite</th>
+              <th>Observations</th>
+              <th>Brief agence</th>
+              <th>Brief distance</th>
+              <th>Debrief agence</th>
+              <th>Debrief distance</th>
+              <th>GTV</th>
+            </tr>
+          </thead>
+          <tbody>
+            {assignments.map((assignment) => {
+              const activity = assignment.activity ? activityByLabel.get(assignment.activity) : undefined;
+
+              return (
+                <tr key={`print-${assignment.id}`}>
+                  <td>{assignment.rank}</td>
+                  <td className="support-print-agent">{assignment.agent}</td>
+                  <td>{printableValue(assignment.workMode) || "-"}</td>
+                  <td>
+                    {assignment.activity ? (
+                      <span
+                        className="support-print-activity"
+                        style={{
+                          backgroundColor: activity?.color ?? "#e5e7eb",
+                          color: getContrastColor(activity?.color ?? "#e5e7eb"),
+                        }}
+                      >
+                        {assignment.activity}
+                      </span>
+                    ) : (
+                      "-"
+                    )}
+                  </td>
+                  <td>{printableValue(assignment.observations) || "-"}</td>
+                  <td>{printableValue(assignment.briefAgence) || "-"}</td>
+                  <td>{printableValue(assignment.briefDistance) || "-"}</td>
+                  <td>{printableValue(assignment.debriefAgence) || "-"}</td>
+                  <td>{printableValue(assignment.debriefDistance) || "-"}</td>
+                  <td>{printableValue(assignment.gtv) || "-"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </section>
+
+      <div className="support-screen-root mx-auto max-w-[2360px]">
         <AppShellHeader
           activeModule="support"
           allowedModules={allowedModules}
@@ -752,6 +847,29 @@ export function SupportJourneeWorkspace({
                 </div>
               </section>
 
+              <section className="rounded-[26px] border border-blue-100 bg-white p-5 shadow-sm">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-950">Commentaires journee</h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Notes generales visibles dans le support journee et reprises sur l&apos;impression.
+                    </p>
+                  </div>
+                  {!canEdit ? (
+                    <p className="text-sm font-semibold text-slate-400">
+                      Prenez la main pour modifier les commentaires.
+                    </p>
+                  ) : null}
+                </div>
+                <textarea
+                  className="mt-4 min-h-[92px] w-full resize-y rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-400 focus:bg-white disabled:bg-slate-100 disabled:text-slate-400"
+                  disabled={!canEdit}
+                  onChange={(event) => setGlobalObservation(event.target.value)}
+                  placeholder="Annotations de la journee, consignes, points d'attention..."
+                  value={globalObservation}
+                />
+              </section>
+
               <section className="rounded-[26px] border border-slate-200/80 bg-[linear-gradient(135deg,#f7fbff_0%,#ffffff_100%)] p-4 shadow-sm sm:p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -858,6 +976,7 @@ export function SupportJourneeWorkspace({
                 </button>
                 <button
                   className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-blue-300 hover:text-blue-700"
+                  onClick={handlePrint}
                   type="button"
                 >
                   Imprimer

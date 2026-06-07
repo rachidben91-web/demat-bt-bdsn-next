@@ -280,6 +280,7 @@ export const supportSummary = {
   editStatus: "—",
   server: "—",
   weatherNote: "Aucune prevision disponible pour jeudi 14 mai.",
+  globalObservation: "",
   savedDayStatus: "Derniere selection : 07/05/2026 — 29 BT, 3 modifie(s), 3 a reporter, 0 O2 OK.",
 };
 

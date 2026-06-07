@@ -5,6 +5,7 @@ import {
   publishMobileDispatchAction,
   type MobileDispatchActionState,
 } from "@/app/actions/mobile-dispatch";
+import type { MobileDispatchStatusSnapshot } from "@/lib/mobile-dispatch";
 
 type MobileDispatchPublishCardProps = {
   btImportDayId: string | null;
@@ -17,6 +18,7 @@ type MobileDispatchPublishCardProps = {
   }>;
   missionDate: string;
   siteCode: string | null;
+  dispatchStatuses?: MobileDispatchStatusSnapshot[];
   technicians: Array<{ id: string; label: string }>;
 };
 
@@ -28,6 +30,7 @@ const initialState: MobileDispatchActionState = {
 export function MobileDispatchPublishCard({
   btImportDayId,
   btPayload,
+  dispatchStatuses = [],
   missionDate,
   siteCode,
   technicians,
@@ -41,6 +44,23 @@ export function MobileDispatchPublishCard({
   if (technicians.length === 0 || btPayload.length === 0) {
     return null;
   }
+
+  const publishedCount = dispatchStatuses.length;
+  const acknowledgedCount = dispatchStatuses.filter((status) => status.acknowledgedAt).length;
+  const latestPublication = dispatchStatuses
+    .map((status) => status.publishedAt)
+    .filter(Boolean)
+    .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] ?? null;
+  const latestAcknowledgement = dispatchStatuses
+    .map((status) => status.acknowledgedAt)
+    .filter((value): value is string => Boolean(value))
+    .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] ?? null;
+
+  const formatTimestamp = (value: string) =>
+    new Intl.DateTimeFormat("fr-FR", {
+      dateStyle: "short",
+      timeStyle: "short",
+    }).format(new Date(value));
 
   return (
     <form action={formAction} className="rounded-[20px] border border-slate-200 bg-slate-50/90 p-3">
@@ -59,6 +79,25 @@ export function MobileDispatchPublishCard({
             Envoie ce groupe vers l&apos;application terrain avec une consigne de depart.
           </p>
         </div>
+
+        {publishedCount > 0 ? (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-900">
+            <p className="font-semibold">
+              {acknowledgedCount === publishedCount
+                ? `Accuse de reception recu pour ${acknowledgedCount} technicien(s).`
+                : `Envoi mobile publie pour ${publishedCount} technicien(s).`}
+            </p>
+            <p className="mt-1 text-emerald-800/90">
+              {latestPublication ? `Derniere publication le ${formatTimestamp(latestPublication)}.` : null}
+              {latestPublication && latestAcknowledgement ? " " : null}
+              {latestAcknowledgement
+                ? `Dernier accuse recu le ${formatTimestamp(latestAcknowledgement)}.`
+                : acknowledgedCount > 0
+                  ? `${acknowledgedCount} technicien(s) ont confirme la reception.`
+                  : "Aucun accuse de reception pour le moment."}
+            </p>
+          </div>
+        ) : null}
 
         <select
           className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 outline-none focus:border-violet-400"

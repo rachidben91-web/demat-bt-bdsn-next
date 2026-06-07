@@ -376,7 +376,7 @@ export async function releaseSupportDayControl(
 }
 
 export async function saveSupportDayAssignments(
-  input: { dayId: string | null; dayDate: string },
+  input: { dayId: string | null; dayDate: string; globalObservation: string },
   assignments: EditableAssignmentInput[],
 ): Promise<SupportJourneeActionResult> {
   try {
@@ -562,6 +562,7 @@ export async function saveSupportDayAssignments(
         status: "in_progress",
         locked_by: context.userEmail,
         locked_at: context.day.locked_at ?? now,
+        global_observation: toNullableValue(input.globalObservation),
         last_modified_by: context.userEmail,
         last_modified_at: now,
       })
