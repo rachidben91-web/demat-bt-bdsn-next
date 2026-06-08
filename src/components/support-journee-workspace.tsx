@@ -615,7 +615,7 @@ export function SupportJourneeWorkspace({
               <th>Brief distance</th>
               <th>Debrief agence</th>
               <th>Debrief distance</th>
-              <th>GTV</th>
+              <th>GRV</th>
             </tr>
           </thead>
           <tbody>
