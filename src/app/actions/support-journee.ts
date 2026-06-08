@@ -6,6 +6,7 @@ import { refresh } from "next/cache";
 
 type EditableAssignmentInput = {
   id: string;
+  technicianId: string;
   activity: string | null;
   observations: string;
   briefAgence: string;
@@ -17,6 +18,7 @@ type EditableAssignmentInput = {
 
 type SupportEntrySnapshot = {
   id: string;
+  technician_id: string;
   activity_id: string | null;
   observation: string | null;
   brief_agency: string | null;
@@ -36,6 +38,7 @@ type TechnicianSeedRow = {
 export type SupportJourneeActionResult = {
   ok: boolean;
   message: string;
+  dayId?: string | null;
   editStatus?: string;
   lastModifiedAt?: string | null;
   lockedBy?: string | null;
@@ -307,6 +310,7 @@ export async function takeSupportDayControl(
     return {
       ok: true,
       message: "Prise en main activee.",
+      dayId: context.day.id,
       editStatus: "in_progress",
       lastModifiedAt: now,
       lockedBy: context.userEmail,
@@ -362,6 +366,7 @@ export async function releaseSupportDayControl(
     return {
       ok: true,
       message: "Journee liberee.",
+      dayId,
       editStatus: "draft",
       lastModifiedAt: now,
       lockedBy: null,
@@ -419,13 +424,9 @@ export async function saveSupportDayAssignments(
     const { data: currentEntries, error: currentEntriesError } = await context.supabase
       .from("support_day_entries")
       .select(
-        "id, activity_id, observation, brief_agency, brief_remote, debrief_agency, debrief_remote, gtv",
+        "id, technician_id, activity_id, observation, brief_agency, brief_remote, debrief_agency, debrief_remote, gtv",
       )
-      .eq("support_day_id", dayId)
-      .in(
-        "id",
-        assignments.map((assignment) => assignment.id),
-      );
+      .eq("support_day_id", dayId);
 
     if (currentEntriesError) {
       throw currentEntriesError;
@@ -434,14 +435,26 @@ export async function saveSupportDayAssignments(
     const currentEntryById = new Map(
       ((currentEntries ?? []) as SupportEntrySnapshot[]).map((entry) => [entry.id, entry]),
     );
+    const currentEntryByTechnicianId = new Map(
+      ((currentEntries ?? []) as SupportEntrySnapshot[]).map((entry) => [entry.technician_id, entry]),
+    );
 
-    const historyRows = assignments.flatMap((assignment) => {
-      const previous = currentEntryById.get(assignment.id);
+    const resolvedEntries = assignments.map((assignment) => {
+      const resolvedEntry =
+        currentEntryById.get(assignment.id) ?? currentEntryByTechnicianId.get(assignment.technicianId);
 
-      if (!previous) {
-        return [];
+      if (!resolvedEntry) {
+        throw new Error(`Ligne support introuvable pour le technicien ${assignment.technicianId}.`);
       }
 
+      return {
+        assignment,
+        previous: resolvedEntry,
+        resolvedEntryId: resolvedEntry.id,
+      };
+    });
+
+    const historyRows = resolvedEntries.flatMap(({ assignment, previous, resolvedEntryId }) => {
       const nextActivityId =
         assignment.activity && assignment.activity.trim().length > 0
           ? activityByLabel.get(assignment.activity) ?? null
@@ -505,7 +518,7 @@ export async function saveSupportDayAssignments(
       return changes
         .filter((change) => change.changed)
         .map((change) => ({
-          support_day_entry_id: assignment.id,
+          support_day_entry_id: resolvedEntryId,
           changed_by: context.userEmail,
           field_name: change.field_name,
           old_value: change.old_value,
@@ -513,7 +526,7 @@ export async function saveSupportDayAssignments(
         }));
     });
 
-    const updates = assignments.map((assignment) => {
+    const updates = resolvedEntries.map(({ assignment, resolvedEntryId }) => {
       const activityId =
         assignment.activity && assignment.activity.trim().length > 0
           ? activityByLabel.get(assignment.activity)
@@ -534,7 +547,7 @@ export async function saveSupportDayAssignments(
           debrief_remote: toNullableValue(assignment.debriefDistance),
           gtv: toNullableValue(assignment.gtv),
         })
-        .eq("id", assignment.id)
+        .eq("id", resolvedEntryId)
         .eq("support_day_id", dayId);
     });
 
@@ -575,6 +588,7 @@ export async function saveSupportDayAssignments(
     return {
       ok: true,
       message: "Journee enregistree.",
+      dayId,
       editStatus: "in_progress",
       lastModifiedAt: now,
       lockedBy: context.userEmail,

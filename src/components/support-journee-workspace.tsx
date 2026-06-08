@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
@@ -138,6 +138,22 @@ type ActivityDraft = {
   status: ActivityStatusValue;
 };
 
+type SaveTrigger = "auto" | "manual" | "release" | "navigation";
+
+type PendingNavigation =
+  | {
+      kind: "href";
+      href: string;
+    }
+  | {
+      kind: "date";
+      date: string;
+    };
+
+function serializeAssignments(assignments: EditableAssignment[]) {
+  return JSON.stringify(assignments);
+}
+
 type SupportJourneeWorkspaceProps = {
   allowedModules?: OfficeModuleKey[];
   data: SupportJourneeData;
@@ -254,6 +270,7 @@ export function SupportJourneeWorkspace({
   const [savedGlobalObservation, setSavedGlobalObservation] = useState(
     supportSummary.globalObservation,
   );
+  const [currentDayId, setCurrentDayId] = useState<string | null>(supportSummary.dayId);
   const [editStatus, setEditStatus] = useState(supportSummary.editStatus);
   const [lockedBy, setLockedBy] = useState(supportSummary.lockedBy);
   const [lockedAt, setLockedAt] = useState(supportSummary.lockedAt);
@@ -273,16 +290,28 @@ export function SupportJourneeWorkspace({
   });
   const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
   const [editingActivity, setEditingActivity] = useState<ActivityDraft | null>(null);
+  const [isSavingAssignments, setIsSavingAssignments] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const autosaveTimerRef = useRef<number | null>(null);
+  const isSavingAssignmentsRef = useRef(false);
+  const hasUnsavedChangesRef = useRef(false);
+  const queuedSaveRef = useRef<SaveTrigger | null>(null);
+  const assignmentsRef = useRef(assignments);
+  const globalObservationRef = useRef(globalObservation);
+  const currentDayIdRef = useRef(currentDayId);
 
   const isLockedByCurrentUser = Boolean(userEmail) && lockedBy === userEmail;
   const canTakeControl =
     source === "supabase" && (!lockedBy || isLockedByCurrentUser);
   const canEdit = source === "mock" || isLockedByCurrentUser;
+  const draftAssignmentsSignature = serializeAssignments(assignments);
+  const savedAssignmentsSignature = serializeAssignments(savedAssignments);
   const hasUnsavedChanges =
-    JSON.stringify(assignments) !== JSON.stringify(savedAssignments) ||
+    draftAssignmentsSignature !== savedAssignmentsSignature ||
     globalObservation !== savedGlobalObservation;
+  const isBusy = isPending || isSavingAssignments;
   const availableDateMap = new Map(
     availableDates.map((item: AvailableSupportDay) => [item.date, item.hasData]),
   );
@@ -364,15 +393,87 @@ export function SupportJourneeWorkspace({
     );
   }
 
-  function syncActionResult(result: {
+  useEffect(() => {
+    assignmentsRef.current = assignments;
+  }, [assignments]);
+
+  useEffect(() => {
+    globalObservationRef.current = globalObservation;
+  }, [globalObservation]);
+
+  useEffect(() => {
+    currentDayIdRef.current = currentDayId;
+  }, [currentDayId]);
+
+  useEffect(() => {
+    hasUnsavedChangesRef.current = hasUnsavedChanges;
+  }, [hasUnsavedChanges]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      if (cancelled) {
+        return;
+      }
+
+      if (supportSummary.dayId) {
+        setCurrentDayId(supportSummary.dayId);
+      }
+
+      setEditStatus(supportSummary.editStatus);
+      setLockedBy(supportSummary.lockedBy);
+      setLockedAt(supportSummary.lockedAt);
+      setLastUpdate(supportSummary.lastUpdate);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    supportSummary.dayId,
+    supportSummary.editStatus,
+    supportSummary.lastUpdate,
+    supportSummary.lockedAt,
+    supportSummary.lockedBy,
+  ]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      if (cancelled || hasUnsavedChangesRef.current || isSavingAssignmentsRef.current) {
+        return;
+      }
+
+      setAssignments(dailyAssignments);
+      setSavedAssignments(dailyAssignments);
+      setGlobalObservation(supportSummary.globalObservation);
+      setSavedGlobalObservation(supportSummary.globalObservation);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    dailyAssignments,
+    supportSummary.globalObservation,
+  ]);
+
+  const syncActionResult = (result: {
     ok: boolean;
     message: string;
+    dayId?: string | null;
     editStatus?: string;
     lastModifiedAt?: string | null;
     lockedBy?: string | null;
     lockedAt?: string | null;
-  }) {
+  }) => {
     setStatusMessage(result.message);
+
+    if (result.dayId !== undefined) {
+      setCurrentDayId(result.dayId);
+    }
 
     if (result.editStatus) {
       setEditStatus(result.editStatus);
@@ -389,56 +490,50 @@ export function SupportJourneeWorkspace({
     if (result.lastModifiedAt !== undefined) {
       setLastUpdate(formatLastUpdate(result.lastModifiedAt));
     }
-  }
+  };
 
-  function handleTakeControl() {
-    if (!canTakeControl) {
-      return;
-    }
-
-    startTransition(async () => {
-      const result = await takeSupportDayControl({
-        dayId: supportSummary.dayId,
-        dayDate: currentDayDate,
-      });
-      syncActionResult(result);
-    });
-  }
-
-  function handleReleaseControl() {
-    if (!supportSummary.dayId || source !== "supabase") {
-      return;
-    }
-
-    startTransition(async () => {
-      const result = await releaseSupportDayControl(supportSummary.dayId!);
-      syncActionResult(result);
-    });
-  }
-
-  function handleSave() {
+  const persistAssignments = useCallback(async (trigger: SaveTrigger) => {
     if (source === "mock") {
       setStatusMessage("Mode maquette : modifications conservees localement.");
-      setSavedAssignments(assignments);
-      setSavedGlobalObservation(globalObservation);
+      setSavedAssignments(assignmentsRef.current);
+      setSavedGlobalObservation(globalObservationRef.current);
       setLastUpdate("Brouillon local");
-      return;
+      return true;
     }
 
-    if (!canEdit) {
-      setStatusMessage("Prenez la main sur la journee avant d'enregistrer.");
-      return;
+    if (!isLockedByCurrentUser) {
+      if (trigger !== "auto") {
+        setStatusMessage("Prenez la main sur la journee avant d'enregistrer.");
+      }
+
+      return false;
     }
 
-    startTransition(async () => {
+    if (isSavingAssignmentsRef.current) {
+      queuedSaveRef.current = trigger;
+      return false;
+    }
+
+    const currentAssignments = assignmentsRef.current;
+    const currentObservation = globalObservationRef.current;
+
+    isSavingAssignmentsRef.current = true;
+    setIsSavingAssignments(true);
+
+    if (trigger === "auto") {
+      setStatusMessage("Enregistrement automatique en cours...");
+    }
+
+    try {
       const result = await saveSupportDayAssignments(
         {
-          dayId: supportSummary.dayId,
+          dayId: currentDayIdRef.current,
           dayDate: currentDayDate,
-          globalObservation,
+          globalObservation: currentObservation,
         },
-        assignments.map((assignment) => ({
+        currentAssignments.map((assignment) => ({
           id: assignment.id,
+          technicianId: assignment.technicianId,
           activity: assignment.activity,
           observations: assignment.observations,
           briefAgence: assignment.briefAgence,
@@ -451,11 +546,214 @@ export function SupportJourneeWorkspace({
 
       syncActionResult(result);
 
-      if (result.ok) {
-        setSavedAssignments(assignments);
-        setSavedGlobalObservation(globalObservation);
+      if (!result.ok) {
+        if (trigger === "auto") {
+          setStatusMessage(`${result.message} Les modifications restent locales.`);
+        }
+
+        return false;
       }
+
+      setSavedAssignments(currentAssignments);
+      setSavedGlobalObservation(currentObservation);
+
+      if (trigger === "auto") {
+        setStatusMessage("Modifications enregistrees automatiquement.");
+      }
+
+      return true;
+    } finally {
+      isSavingAssignmentsRef.current = false;
+      setIsSavingAssignments(false);
+
+      const queuedSave = queuedSaveRef.current;
+      queuedSaveRef.current = null;
+
+      if (
+        queuedSave &&
+        (serializeAssignments(assignmentsRef.current) !== serializeAssignments(currentAssignments) ||
+          globalObservationRef.current !== currentObservation)
+      ) {
+        void persistAssignments(queuedSave);
+      }
+    }
+  }, [currentDayDate, isLockedByCurrentUser, source]);
+
+  function completeNavigation(target: PendingNavigation) {
+    if (target.kind === "date") {
+      setCalendarOpen(false);
+      setVisibleMonth(startOfMonth(target.date));
+    }
+
+    startTransition(() => {
+      if (target.kind === "date") {
+        router.push(`/support?date=${target.date}`);
+        return;
+      }
+
+      router.push(target.href);
     });
+  }
+
+  function requestNavigation(target: PendingNavigation) {
+    if (isSavingAssignmentsRef.current) {
+      setStatusMessage("Un enregistrement est deja en cours. Reessayez dans un instant.");
+      return;
+    }
+
+    if (hasUnsavedChanges) {
+      setPendingNavigation(target);
+      return;
+    }
+
+    completeNavigation(target);
+  }
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) {
+      return;
+    }
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  useEffect(() => {
+    const handleDocumentClick = (event: MouseEvent) => {
+      if (
+        !hasUnsavedChanges ||
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return;
+      }
+
+      const target = event.target;
+
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      const anchor = target.closest("a[href]");
+
+      if (!(anchor instanceof HTMLAnchorElement)) {
+        return;
+      }
+
+      if (anchor.target && anchor.target !== "_self") {
+        return;
+      }
+
+      const url = new URL(anchor.href, window.location.href);
+
+      if (url.origin !== window.location.origin) {
+        return;
+      }
+
+      const nextHref = `${url.pathname}${url.search}${url.hash}`;
+      const currentHref = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+      if (nextHref === currentHref) {
+        return;
+      }
+
+      event.preventDefault();
+      setPendingNavigation({
+        kind: "href",
+        href: nextHref,
+      });
+    };
+
+    document.addEventListener("click", handleDocumentClick, true);
+    return () => document.removeEventListener("click", handleDocumentClick, true);
+  }, [hasUnsavedChanges]);
+
+  useEffect(() => {
+    if (source !== "supabase" || isLockedByCurrentUser || hasUnsavedChanges) {
+      return;
+    }
+
+    const refreshInterval = window.setInterval(() => {
+      router.refresh();
+    }, 15000);
+
+    return () => window.clearInterval(refreshInterval);
+  }, [hasUnsavedChanges, isLockedByCurrentUser, router, source]);
+
+  useEffect(() => {
+    if (
+      source !== "supabase" ||
+      !isLockedByCurrentUser ||
+      !hasUnsavedChanges ||
+      pendingNavigation !== null
+    ) {
+      return;
+    }
+
+    autosaveTimerRef.current = window.setTimeout(() => {
+      void persistAssignments("auto");
+    }, 1000);
+
+    return () => {
+      if (autosaveTimerRef.current !== null) {
+        window.clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+    };
+  }, [
+    assignments,
+    globalObservation,
+    hasUnsavedChanges,
+    isLockedByCurrentUser,
+    pendingNavigation,
+    persistAssignments,
+    source,
+  ]);
+
+  function handleTakeControl() {
+    if (!canTakeControl) {
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await takeSupportDayControl({
+        dayId: currentDayId,
+        dayDate: currentDayDate,
+      });
+      syncActionResult(result);
+    });
+  }
+
+  function handleReleaseControl() {
+    if (!currentDayId || source !== "supabase") {
+      return;
+    }
+
+    startTransition(async () => {
+      if (hasUnsavedChanges) {
+        const saveSucceeded = await persistAssignments("release");
+
+        if (!saveSucceeded) {
+          return;
+        }
+      }
+
+      const result = await releaseSupportDayControl(currentDayId);
+      syncActionResult(result);
+    });
+  }
+
+  function handleSave() {
+    void persistAssignments("manual");
   }
 
   function handleReset() {
@@ -556,15 +854,30 @@ export function SupportJourneeWorkspace({
   }
 
   function navigateToDate(date: string) {
-    setCalendarOpen(false);
-    setVisibleMonth(startOfMonth(date));
-    startTransition(() => {
-      router.push(`/support?date=${date}`);
+    requestNavigation({
+      kind: "date",
+      date,
     });
   }
 
   function handlePrint() {
     window.print();
+  }
+
+  async function handleSaveAndContinue() {
+    if (!pendingNavigation) {
+      return;
+    }
+
+    const target = pendingNavigation;
+    const saveSucceeded = await persistAssignments("navigation");
+
+    if (!saveSucceeded) {
+      return;
+    }
+
+    setPendingNavigation(null);
+    completeNavigation(target);
   }
 
   return (
@@ -966,7 +1279,7 @@ export function SupportJourneeWorkspace({
                       ? "border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:text-blue-700"
                       : "border-slate-200 bg-slate-100 text-slate-400",
                   )}
-                  disabled={!canTakeControl || isPending}
+                  disabled={!canTakeControl || isBusy}
                   onClick={handleTakeControl}
                   type="button"
                 >
@@ -979,7 +1292,7 @@ export function SupportJourneeWorkspace({
                       ? "border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:text-blue-700"
                       : "border-slate-200 bg-slate-100 text-slate-400",
                   )}
-                  disabled={!canEdit || isPending}
+                  disabled={!canEdit || isBusy}
                   onClick={handleReleaseControl}
                   type="button"
                 >
@@ -992,11 +1305,11 @@ export function SupportJourneeWorkspace({
                       ? "border-blue-600 bg-blue-600 text-white"
                       : "border-slate-200 bg-slate-100 text-slate-400",
                   )}
-                  disabled={!canEdit || isPending}
+                  disabled={!canEdit || isBusy}
                   onClick={handleSave}
                   type="button"
                 >
-                  {isPending ? "Enregistrement..." : "Enregistrer"}
+                  {isSavingAssignments ? "Enregistrement..." : "Enregistrer"}
                 </button>
                 <button
                   className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-blue-300 hover:text-blue-700"
@@ -1019,7 +1332,7 @@ export function SupportJourneeWorkspace({
                         ? "border-rose-200 bg-rose-50 text-rose-500"
                         : "border-slate-200 bg-slate-100 text-slate-400",
                     )}
-                    disabled={!canEdit || isPending}
+                    disabled={!canEdit || isBusy}
                     onClick={handleReset}
                     type="button"
                   >
@@ -1030,7 +1343,16 @@ export function SupportJourneeWorkspace({
 
               <section className="rounded-[24px] border border-blue-100 bg-blue-50/70 px-4 py-3 text-sm text-blue-800 shadow-sm">
                 <p>{statusMessage}</p>
-                {hasUnsavedChanges ? <p className="mt-1 text-blue-700">Des modifications locales sont en attente d&apos;enregistrement.</p> : null}
+                {hasUnsavedChanges ? (
+                  <p className="mt-1 text-blue-700">
+                    Des modifications locales sont en attente d&apos;enregistrement.
+                  </p>
+                ) : null}
+                {source === "supabase" && isLockedByCurrentUser && !hasUnsavedChanges ? (
+                  <p className="mt-1 text-blue-700">
+                    Les modifications sont synchronisees automatiquement avec Supabase.
+                  </p>
+                ) : null}
               </section>
 
               <section className="overflow-hidden rounded-[26px] border border-slate-200/80 bg-white shadow-sm">
@@ -1315,7 +1637,7 @@ export function SupportJourneeWorkspace({
                     </select>
                     <button
                       className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(37,99,235,0.24)]"
-                      disabled={isPending}
+                      disabled={isBusy}
                       onClick={handleCreateActivity}
                       type="button"
                     >
@@ -1566,6 +1888,51 @@ export function SupportJourneeWorkspace({
           ) : null}
         </section>
       </div>
+
+      {pendingNavigation ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-4">
+          <div className="w-full max-w-lg rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_30px_90px_rgba(15,23,42,0.22)]">
+            <h3 className="text-xl font-semibold text-slate-950">
+              Des modifications ne sont pas encore enregistrees
+            </h3>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              Vous pouvez poursuivre sans sauvegarder, ou enregistrer vos modifications avant
+              de quitter cette page.
+            </p>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm"
+                disabled={isBusy}
+                onClick={() => setPendingNavigation(null)}
+                type="button"
+              >
+                Annuler
+              </button>
+              <button
+                className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-600 shadow-sm"
+                disabled={isBusy}
+                onClick={() => {
+                  const target = pendingNavigation;
+                  setPendingNavigation(null);
+                  completeNavigation(target);
+                }}
+                type="button"
+              >
+                Poursuivre sans enregistrer
+              </button>
+              <button
+                className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(37,99,235,0.24)]"
+                disabled={isBusy}
+                onClick={() => void handleSaveAndContinue()}
+                type="button"
+              >
+                {isSavingAssignments ? "Enregistrement..." : "Enregistrer puis continuer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
