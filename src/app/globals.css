@@ -208,6 +208,12 @@ a {
     page-break-inside: avoid;
   }
 
+  .support-print-row-absent td {
+    background: #fee2e2 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
   .support-print-table td:first-child,
   .support-print-table th:first-child {
     text-align: center;

@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   createActivityDefinition,
   deactivateActivityDefinition,
@@ -220,6 +221,22 @@ function formatDateDisplay(dateString: string) {
   return `${day}/${month}/${year}`;
 }
 
+function formatEditStatusLabel(status: string) {
+  if (status === "draft") {
+    return "Brouillon";
+  }
+
+  if (status === "in_progress") {
+    return "En cours de modification";
+  }
+
+  if (status === "published") {
+    return "Publie";
+  }
+
+  return status;
+}
+
 function parseDisplayDateToIso(dateString: string) {
   const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(dateString.trim());
 
@@ -252,8 +269,6 @@ export function SupportJourneeWorkspace({
     source,
   } = data;
   const [activeTab, setActiveTab] = useState<TabId>("brief");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedTechnician, setSelectedTechnician] = useState("all");
   const [historyAgent, setHistoryAgent] = useState("all");
   const [appliedHistoryAgent, setAppliedHistoryAgent] = useState("all");
   const [historyStartDate, setHistoryStartDate] = useState("");
@@ -301,6 +316,8 @@ export function SupportJourneeWorkspace({
   const assignmentsRef = useRef(assignments);
   const globalObservationRef = useRef(globalObservation);
   const currentDayIdRef = useRef(currentDayId);
+  const tableSectionRef = useRef<HTMLElement | null>(null);
+  const tableHeaderRef = useRef<HTMLDivElement | null>(null);
 
   const isLockedByCurrentUser = Boolean(userEmail) && lockedBy === userEmail;
   const canTakeControl =
@@ -312,11 +329,54 @@ export function SupportJourneeWorkspace({
     draftAssignmentsSignature !== savedAssignmentsSignature ||
     globalObservation !== savedGlobalObservation;
   const isBusy = isPending || isSavingAssignments;
+  const saveState = isSavingAssignments ? "saving" : hasUnsavedChanges ? "dirty" : "saved";
+  const saveStateBadgeClassName =
+    saveState === "saving"
+      ? "border-amber-200 bg-amber-50 text-amber-700"
+      : saveState === "dirty"
+        ? "border-rose-200 bg-rose-50 text-rose-700"
+        : "border-emerald-200 bg-emerald-50 text-emerald-700";
+  const saveStatePanelClassName =
+    saveState === "saving"
+      ? "border-amber-100 bg-amber-50/80 text-amber-800"
+      : saveState === "dirty"
+        ? "border-rose-100 bg-rose-50/80 text-rose-800"
+        : "border-emerald-100 bg-emerald-50/80 text-emerald-800";
+  const saveStateAccentClassName =
+    saveState === "saving"
+      ? "text-amber-700"
+      : saveState === "dirty"
+        ? "text-rose-700"
+        : "text-emerald-700";
+  const saveStateLabel =
+    saveState === "saving"
+      ? "Enregistrement en cours"
+      : saveState === "dirty"
+        ? "Modifications non enregistrees"
+        : "Modifications enregistrees";
+  const tableHeaderTop = 104;
+  const [tableHeaderFrame, setTableHeaderFrame] = useState({
+    isPinned: false,
+    left: 0,
+    width: 0,
+  });
   const availableDateMap = new Map(
     availableDates.map((item: AvailableSupportDay) => [item.date, item.hasData]),
   );
   const calendarDays = buildCalendarDays(visibleMonth);
-  const activityByLabel = new Map(activityDefinitions.map((activity) => [activity.label, activity]));
+  const sortedActivityDefinitions = useMemo(
+    () =>
+      [...activityDefinitions].sort((firstActivity, secondActivity) =>
+        firstActivity.label.localeCompare(secondActivity.label, "fr", {
+          numeric: true,
+          sensitivity: "base",
+        }),
+      ),
+    [activityDefinitions],
+  );
+  const activityByLabel = new Map(
+    sortedActivityDefinitions.map((activity) => [activity.label, activity]),
+  );
   const printGeneratedAt = new Intl.DateTimeFormat("fr-FR", {
     dateStyle: "short",
     timeStyle: "short",
@@ -342,20 +402,9 @@ export function SupportJourneeWorkspace({
     },
   );
 
-  const filteredAssignments = assignments.filter((assignment) => {
-    const bySearch =
-      searchTerm.length === 0 ||
-      assignment.agent.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      normalizeActivity(assignment.activity).toLowerCase().includes(searchTerm.toLowerCase()) ||
-      assignment.observations.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredAssignments = assignments;
 
-    const byTechnician =
-      selectedTechnician === "all" || assignment.technicianId === selectedTechnician;
-
-    return bySearch && byTechnician;
-  });
-
-  const filteredActivities = activityDefinitions.filter((activity) =>
+  const filteredActivities = sortedActivityDefinitions.filter((activity) =>
     activity.label.toLowerCase().includes(activitySearch.toLowerCase()),
   );
 
@@ -408,6 +457,50 @@ export function SupportJourneeWorkspace({
   useEffect(() => {
     hasUnsavedChangesRef.current = hasUnsavedChanges;
   }, [hasUnsavedChanges]);
+
+  useEffect(() => {
+    function updateTableHeaderPinning() {
+      const tableSection = tableSectionRef.current;
+      const tableHeader = tableHeaderRef.current;
+
+      if (!tableSection || !tableHeader) {
+        return;
+      }
+
+      const sectionRect = tableSection.getBoundingClientRect();
+      const headerHeight = tableHeader.offsetHeight;
+      const shouldPin =
+        sectionRect.top <= tableHeaderTop &&
+        sectionRect.bottom > tableHeaderTop + headerHeight;
+
+      setTableHeaderFrame((current) => {
+        const next = {
+          isPinned: shouldPin,
+          left: sectionRect.left,
+          width: sectionRect.width,
+        };
+
+        if (
+          current.isPinned === next.isPinned &&
+          current.left === next.left &&
+          current.width === next.width
+        ) {
+          return current;
+        }
+
+        return next;
+      });
+    }
+
+    updateTableHeaderPinning();
+    window.addEventListener("scroll", updateTableHeaderPinning, { passive: true });
+    window.addEventListener("resize", updateTableHeaderPinning);
+
+    return () => {
+      window.removeEventListener("scroll", updateTableHeaderPinning);
+      window.removeEventListener("resize", updateTableHeaderPinning);
+    };
+  }, [tableHeaderTop]);
 
   useEffect(() => {
     let cancelled = false;
@@ -880,6 +973,115 @@ export function SupportJourneeWorkspace({
     completeNavigation(target);
   }
 
+  const dateNavigatorControls = (
+    <div className="flex flex-wrap gap-2">
+      {["J-1", "Auj.", "J+1"].map((item) => (
+        <button
+          key={item}
+          className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm"
+          onClick={() =>
+            navigateToDate(
+              item === "J-1"
+                ? shiftDate(currentDayDate, -1)
+                : item === "J+1"
+                  ? shiftDate(currentDayDate, 1)
+                  : new Date().toISOString().slice(0, 10),
+            )
+          }
+          type="button"
+        >
+          {item}
+        </button>
+      ))}
+      <div className="relative">
+        <button
+          className="flex min-w-[180px] items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-blue-300 hover:bg-white"
+          onClick={() => setCalendarOpen((current) => !current)}
+          type="button"
+        >
+          <span>{formatDateDisplay(currentDayDate)}</span>
+          <CalendarDays aria-hidden="true" className="h-4 w-4 text-blue-500" />
+        </button>
+
+        {calendarOpen ? (
+          <div className="absolute left-0 top-[calc(100%+8px)] z-20 w-[320px] rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_22px_60px_rgba(15,23,42,0.18)]">
+            <div className="flex items-center justify-between">
+              <button
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-700"
+                onClick={() => setVisibleMonth((current) => shiftMonth(current, -1))}
+                type="button"
+              >
+                <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+              </button>
+              <p className="text-sm font-semibold capitalize text-slate-900">
+                {formatCalendarHeader(visibleMonth)}
+              </p>
+              <button
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-700"
+                onClick={() => setVisibleMonth((current) => shiftMonth(current, 1))}
+                type="button"
+              >
+                <ChevronRight aria-hidden="true" className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 grid grid-cols-7 gap-2 text-center text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+              {["L", "M", "M", "J", "V", "S", "D"].map((label, index) => (
+                <div key={`${label}-${index}`}>{label}</div>
+              ))}
+            </div>
+
+            <div className="mt-3 grid grid-cols-7 gap-2">
+              {calendarDays.map((day) => {
+                const isCurrentDay = day.iso === currentDayDate;
+                const isKnownDay = availableDateMap.has(day.iso);
+                const hasData = availableDateMap.get(day.iso) === true;
+
+                return (
+                  <button
+                    key={day.iso}
+                    className={cx(
+                      "relative flex h-10 items-center justify-center rounded-xl text-sm font-semibold transition",
+                      day.inCurrentMonth
+                        ? "text-slate-700 hover:bg-slate-100"
+                        : "text-slate-300 hover:bg-slate-50",
+                      isCurrentDay && "bg-blue-600 text-white hover:bg-blue-600",
+                    )}
+                    onClick={() => navigateToDate(day.iso)}
+                    type="button"
+                  >
+                    <span>{day.dayNumber}</span>
+                    {isKnownDay ? (
+                      <span
+                        className={cx(
+                          "absolute bottom-1 h-1.5 w-1.5 rounded-full",
+                          isCurrentDay
+                            ? "bg-white"
+                            : hasData
+                              ? "bg-emerald-500"
+                              : "bg-rose-500",
+                        )}
+                      />
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
+              <span className="h-2 w-2 rounded-full bg-rose-500" />
+              <span>Journee initialisee vide</span>
+            </div>
+            <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              <span>Journee avec donnees</span>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+
   return (
     <main className={cx("min-h-screen px-4 py-4 text-slate-900 sm:px-6 lg:px-8", supportTheme.pageBackgroundClassName)}>
       <section className="support-print-sheet">
@@ -934,9 +1136,13 @@ export function SupportJourneeWorkspace({
           <tbody>
             {assignments.map((assignment) => {
               const activity = assignment.activity ? activityByLabel.get(assignment.activity) : undefined;
+              const isAbsentRow = activity?.status === "Absent";
 
               return (
-                <tr key={`print-${assignment.id}`}>
+                <tr
+                  key={`print-${assignment.id}`}
+                  className={isAbsentRow ? "support-print-row-absent" : undefined}
+                >
                   <td>{assignment.rank}</td>
                   <td className="support-print-agent">{assignment.agent}</td>
                   <td>{printableValue(assignment.workMode) || "-"}</td>
@@ -1037,9 +1243,10 @@ export function SupportJourneeWorkspace({
 
           {activeTab === "brief" ? (
             <div className="mt-6 space-y-5">
-              <section className="grid gap-4 rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-                <div>
-                  <div className="flex flex-wrap gap-2">
+              <section className="flex justify-end rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm">
+                {false ? (
+                  <div className="hidden">
+                  <div className="hidden flex-wrap gap-2">
                     {["J-1", "Auj.", "J+1"].map((item) => (
                       <button
                         key={item}
@@ -1169,42 +1376,47 @@ export function SupportJourneeWorkspace({
                       {supportSummary.weatherNote}
                     </div>
                   </div>
-                </div>
+                  </div>
+                ) : null}
 
-                <div className="rounded-[24px] bg-[linear-gradient(135deg,#eef4ff_0%,#f8fbff_100%)] p-5">
-                  <p className="text-3xl font-semibold uppercase tracking-tight text-blue-600">
-                    {supportSummary.dateLabel}
-                  </p>
-                  <p className="mt-2 text-sm text-slate-500">{supportSummary.weekLabel}</p>
-                  <div className="mt-4 space-y-2 text-sm text-slate-500">
-                    <p>Derniere modification : {lastUpdate}</p>
-                    <p>Statut edition : {editStatus}</p>
-                    <p>Verrou : {lockedBy ? `${lockedBy} (${formatLockTimestamp(lockedAt)})` : "Libre"}</p>
+                <div className="w-full rounded-[24px] border border-blue-100 bg-[linear-gradient(135deg,#f8fbff_0%,#ffffff_100%)] p-4 shadow-sm">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+                    <div className="rounded-[22px] bg-[linear-gradient(135deg,#eef4ff_0%,#f8fbff_100%)] p-4 lg:w-[340px] lg:flex-none">
+                      <p className="text-3xl font-semibold uppercase tracking-tight text-blue-600">
+                        {supportSummary.dateLabel}
+                      </p>
+                      <p className="mt-2 text-sm text-slate-500">{supportSummary.weekLabel}</p>
+                      <div className="mt-4 space-y-2 text-sm text-slate-500">
+                        <p>Derniere modification : {lastUpdate}</p>
+                        <p>Statut edition : {formatEditStatusLabel(editStatus)}</p>
+                        <p>Verrou : {lockedBy ? `${lockedBy} (${formatLockTimestamp(lockedAt)})` : "Libre"}</p>
+                      </div>
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                          <h3 className="text-base font-semibold text-slate-950">Commentaires journee</h3>
+                          <p className="mt-1 text-sm text-slate-500">
+                            Notes generales visibles dans le support journee et reprises sur l&apos;impression.
+                          </p>
+                        </div>
+                        {!canEdit ? (
+                          <p className="text-sm font-semibold text-slate-400">
+                            Prenez la main pour modifier les commentaires.
+                          </p>
+                        ) : null}
+                      </div>
+                      <textarea
+                        className="mt-3 min-h-[72px] w-full resize-y rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-400 focus:bg-white disabled:bg-slate-100 disabled:text-slate-400"
+                        disabled={!canEdit}
+                        onChange={(event) => setGlobalObservation(event.target.value)}
+                        placeholder="Annotations de la journee, consignes, points d'attention..."
+                        value={globalObservation}
+                      />
+                    </div>
                   </div>
                 </div>
-              </section>
-
-              <section className="rounded-[26px] border border-blue-100 bg-white p-5 shadow-sm">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-slate-950">Commentaires journee</h3>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Notes generales visibles dans le support journee et reprises sur l&apos;impression.
-                    </p>
-                  </div>
-                  {!canEdit ? (
-                    <p className="text-sm font-semibold text-slate-400">
-                      Prenez la main pour modifier les commentaires.
-                    </p>
-                  ) : null}
-                </div>
-                <textarea
-                  className="mt-4 min-h-[92px] w-full resize-y rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-400 focus:bg-white disabled:bg-slate-100 disabled:text-slate-400"
-                  disabled={!canEdit}
-                  onChange={(event) => setGlobalObservation(event.target.value)}
-                  placeholder="Annotations de la journee, consignes, points d'attention..."
-                  value={globalObservation}
-                />
               </section>
 
               <section className="rounded-[26px] border border-slate-200/80 bg-[linear-gradient(135deg,#f7fbff_0%,#ffffff_100%)] p-4 shadow-sm sm:p-5">
@@ -1215,26 +1427,26 @@ export function SupportJourneeWorkspace({
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-4 xl:grid-cols-4">
+                <div className="mt-4 grid gap-3 xl:grid-cols-4">
                   {dayWeather.length > 0 ? (
                     dayWeather.map((zone) => (
                       <article
                         key={zone.id}
-                        className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm"
+                        className="rounded-[20px] border border-slate-200 bg-white p-3 shadow-sm"
                       >
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start justify-between gap-2">
                           <div>
-                            <p className="text-lg font-semibold text-slate-950">{zone.label}</p>
-                            <p className="mt-2 text-4xl font-semibold tracking-tight text-slate-950">
+                            <p className="text-base font-semibold text-slate-950">{zone.label}</p>
+                            <p className="mt-1.5 text-3xl font-semibold tracking-tight text-slate-950">
                               {zone.minTempC ?? "—"}° / {zone.maxTempC ?? "—"}°
                             </p>
                           </div>
-                          <div className="text-3xl" title={zone.weatherLabel}>
+                          <div className="text-2xl leading-none" title={zone.weatherLabel}>
                             {zone.weatherIcon}
                           </div>
                         </div>
 
-                        <dl className="mt-4 space-y-2 text-sm">
+                        <dl className="mt-3 space-y-1.5 text-sm">
                           <div className="flex items-center justify-between gap-3">
                             <dt className="text-slate-500">Prob. pluie</dt>
                             <dd className="font-semibold text-slate-950">
@@ -1255,7 +1467,7 @@ export function SupportJourneeWorkspace({
 
                         <div
                           className={cx(
-                            "mt-4 inline-flex rounded-full border px-3 py-1 text-xs font-semibold",
+                            "mt-3 inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-semibold",
                             rsfTone(zone.rsfLevel),
                           )}
                         >
@@ -1271,7 +1483,8 @@ export function SupportJourneeWorkspace({
                 </div>
               </section>
 
-              <section className="flex flex-wrap items-center gap-3 rounded-[26px] border border-slate-200/80 bg-white p-4 shadow-sm">
+              <section className="sticky top-4 z-40 flex flex-wrap items-center gap-3 rounded-[26px] border border-slate-200/80 bg-white/95 p-4 shadow-sm backdrop-blur">
+                {dateNavigatorControls}
                 <button
                   className={cx(
                     "rounded-2xl border px-4 py-3 text-sm font-semibold shadow-sm transition",
@@ -1324,6 +1537,14 @@ export function SupportJourneeWorkspace({
                 >
                   CSV
                 </button>
+                <span
+                  className={cx(
+                    "inline-flex rounded-full border px-3 py-1 text-xs font-semibold",
+                    saveStateBadgeClassName,
+                  )}
+                >
+                  {saveStateLabel}
+                </span>
                 <div className="ml-auto">
                   <button
                     className={cx(
@@ -1341,22 +1562,45 @@ export function SupportJourneeWorkspace({
                 </div>
               </section>
 
-              <section className="rounded-[24px] border border-blue-100 bg-blue-50/70 px-4 py-3 text-sm text-blue-800 shadow-sm">
+              <section
+                className={cx(
+                  "rounded-[24px] px-4 py-3 text-sm shadow-sm",
+                  saveStatePanelClassName,
+                )}
+              >
                 <p>{statusMessage}</p>
                 {hasUnsavedChanges ? (
-                  <p className="mt-1 text-blue-700">
+                  <p className={cx("mt-1", saveStateAccentClassName)}>
                     Des modifications locales sont en attente d&apos;enregistrement.
                   </p>
                 ) : null}
                 {source === "supabase" && isLockedByCurrentUser && !hasUnsavedChanges ? (
-                  <p className="mt-1 text-blue-700">
+                  <p className={cx("mt-1", saveStateAccentClassName)}>
                     Les modifications sont synchronisees automatiquement avec Supabase.
                   </p>
                 ) : null}
               </section>
 
-              <section className="overflow-hidden rounded-[26px] border border-slate-200/80 bg-white shadow-sm">
-                <div className="overflow-x-auto">
+              <section
+                ref={tableSectionRef}
+                className="overflow-hidden rounded-[26px] border border-slate-200/80 bg-white shadow-sm"
+              >
+                <div
+                  ref={tableHeaderRef}
+                  className={cx(
+                    "overflow-x-auto border-b border-slate-200/80",
+                    tableHeaderFrame.isPinned ? "fixed z-30" : "relative",
+                  )}
+                  style={
+                    tableHeaderFrame.isPinned
+                      ? {
+                          top: tableHeaderTop,
+                          left: tableHeaderFrame.left,
+                          width: tableHeaderFrame.width,
+                        }
+                      : undefined
+                  }
+                >
                   <table className="min-w-full table-fixed text-sm">
                     <colgroup>
                       <col className="w-[52px]" />
@@ -1387,7 +1631,7 @@ export function SupportJourneeWorkspace({
                           <th
                             key={`${heading}-${index}`}
                             className={cx(
-                              "px-3 py-4 text-center font-semibold",
+                              "bg-[linear-gradient(90deg,#2d63da_0%,#3567e7_100%)] px-3 py-4 text-center font-semibold",
                               (index === 5 || index === 7 || index === 9) &&
                                 "border-l border-white/25",
                               (index === 6 || index === 8 || index === 9) &&
@@ -1399,31 +1643,58 @@ export function SupportJourneeWorkspace({
                         ))}
                       </tr>
                       <tr className="border-b border-slate-200 bg-blue-50 text-xs uppercase tracking-[0.18em] text-blue-700">
-                        <th className="px-3 py-3" />
-                        <th className="px-3 py-3" />
-                        <th className="px-3 py-3" />
-                        <th className="px-3 py-3" />
-                        <th className="px-3 py-3" />
-                        <th className="border-l border-blue-200 px-3 py-3 text-center">
+                        <th className="bg-blue-50 px-3 py-3" />
+                        <th className="bg-blue-50 px-3 py-3" />
+                        <th className="bg-blue-50 px-3 py-3" />
+                        <th className="bg-blue-50 px-3 py-3" />
+                        <th className="bg-blue-50 px-3 py-3" />
+                        <th className="border-l border-blue-200 bg-blue-50 px-3 py-3 text-center">
                           Agence
                         </th>
-                        <th className="border-r border-blue-200 px-3 py-3 text-center">
+                        <th className="border-r border-blue-200 bg-blue-50 px-3 py-3 text-center">
                           Distance
                         </th>
-                        <th className="border-l border-blue-200 px-3 py-3 text-center">
+                        <th className="border-l border-blue-200 bg-blue-50 px-3 py-3 text-center">
                           Agence
                         </th>
-                        <th className="border-r border-blue-200 px-3 py-3 text-center">
+                        <th className="border-r border-blue-200 bg-blue-50 px-3 py-3 text-center">
                           Distance
                         </th>
-                        <th className="border-x border-blue-200 px-3 py-3 text-center" />
+                        <th className="border-x border-blue-200 bg-blue-50 px-3 py-3 text-center" />
                       </tr>
                     </thead>
+                  </table>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full table-fixed text-sm">
+                    <colgroup>
+                      <col className="w-[52px]" />
+                      <col className="w-[16%]" />
+                      <col className="w-[8%]" />
+                      <col className="w-[15%]" />
+                      <col className="w-[16%]" />
+                      <col className="w-[8.5%]" />
+                      <col className="w-[8.5%]" />
+                      <col className="w-[8.5%]" />
+                      <col className="w-[8.5%]" />
+                      <col className="w-[7%]" />
+                    </colgroup>
                     <tbody>
-                      {filteredAssignments.map((assignment) => (
+                      {filteredAssignments.map((assignment) => {
+                        const rowActivity = assignment.activity
+                          ? activityByLabel.get(assignment.activity)
+                          : undefined;
+                        const isAbsentRow = rowActivity?.status === "Absent";
+
+                        return (
                         <tr
                           key={assignment.id}
-                          className="border-b border-slate-100 hover:bg-slate-50/70"
+                          className={cx(
+                            "border-b border-slate-100 transition-colors",
+                            isAbsentRow
+                              ? "bg-rose-50/70 hover:bg-rose-100/70"
+                              : "hover:bg-slate-50/70",
+                          )}
                         >
                           <td className="px-3 py-3 align-middle">
                             <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-xs font-semibold text-blue-700">
@@ -1438,9 +1709,7 @@ export function SupportJourneeWorkspace({
                           </td>
                           <td className="px-3 py-3 align-middle text-center">
                             {(() => {
-                              const selectedActivity = assignment.activity
-                                ? activityByLabel.get(assignment.activity)
-                                : undefined;
+                              const selectedActivity = rowActivity;
 
                               return (
                             <select
@@ -1461,7 +1730,7 @@ export function SupportJourneeWorkspace({
                               }}
                             >
                               <option value="">—</option>
-                              {activityDefinitions.map((activity) => (
+                              {sortedActivityDefinitions.map((activity) => (
                                 <option key={activity.id} value={activity.label}>
                                   {activity.label}
                                 </option>
@@ -1571,7 +1840,8 @@ export function SupportJourneeWorkspace({
                             </select>
                           </td>
                         </tr>
-                      ))}
+                      );
+                    })}
                     </tbody>
                   </table>
                 </div>
