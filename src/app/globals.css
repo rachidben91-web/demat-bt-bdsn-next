@@ -209,7 +209,7 @@ a {
   }
 
   .support-print-row-absent td {
-    background: #fee2e2 !important;
+    background: #fecaca !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -248,6 +248,10 @@ a {
   }
 
   .support-print-agent {
+    font-weight: 700;
+  }
+
+  .support-print-table td:nth-child(3) {
     font-weight: 700;
   }
 

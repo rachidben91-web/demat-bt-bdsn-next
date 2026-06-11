@@ -113,9 +113,23 @@ function getContrastColor(hexColor: string) {
   const red = Number.parseInt(value.slice(0, 2), 16);
   const green = Number.parseInt(value.slice(2, 4), 16);
   const blue = Number.parseInt(value.slice(4, 6), 16);
-  const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
 
-  return luminance > 0.7 ? "#0f172a" : "#ffffff";
+  const toLinear = (channel: number) => {
+    const normalized = channel / 255;
+
+    return normalized <= 0.03928
+      ? normalized / 12.92
+      : ((normalized + 0.055) / 1.055) ** 2.4;
+  };
+
+  const luminance =
+    0.2126 * toLinear(red) +
+    0.7152 * toLinear(green) +
+    0.0722 * toLinear(blue);
+  const contrastWithDark = (luminance + 0.05) / 0.05;
+  const contrastWithWhite = 1.05 / (luminance + 0.05);
+
+  return contrastWithDark >= contrastWithWhite ? "#0f172a" : "#ffffff";
 }
 
 function activitySelectStyle(activity: ActivityOption | undefined) {
@@ -269,6 +283,8 @@ export function SupportJourneeWorkspace({
     source,
   } = data;
   const [activeTab, setActiveTab] = useState<TabId>("brief");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedTechnician, setSelectedTechnician] = useState("all");
   const [historyAgent, setHistoryAgent] = useState("all");
   const [appliedHistoryAgent, setAppliedHistoryAgent] = useState("all");
   const [historyStartDate, setHistoryStartDate] = useState("");
