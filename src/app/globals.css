@@ -214,6 +214,13 @@ a {
     print-color-adjust: exact;
   }
 
+  .support-print-row-absent .support-print-activity-cell {
+    background: #fca5a5 !important;
+    color: #7f1d1d !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
   .support-print-table td:first-child,
   .support-print-table th:first-child {
     text-align: center;
