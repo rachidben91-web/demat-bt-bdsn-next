@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { TerrainMobileChrome } from "@/components/terrain-mobile-chrome";
 import { TerrainPwaRegistration } from "@/components/terrain-pwa-registration";
 
 export const metadata: Metadata = {
@@ -7,7 +8,7 @@ export const metadata: Metadata = {
     template: "%s | DEMAT-BT Terrain",
   },
   description:
-    "Application terrain DEMAT-BT Terrain pour consulter la journée du jour, les briefs et les interventions terrain.",
+    "Application terrain DEMAT-BT Terrain pour consulter la mission publiée, les BT et les futurs modules terrain.",
   applicationName: "DEMAT-BT Terrain",
   manifest: "/terrain.webmanifest",
   appleWebApp: {
@@ -21,7 +22,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0f766e",
+  themeColor: "#eef5fb",
   colorScheme: "light",
 };
 
@@ -33,7 +34,7 @@ export default function TerrainLayout({
   return (
     <>
       <TerrainPwaRegistration />
-      {children}
+      <TerrainMobileChrome>{children}</TerrainMobileChrome>
     </>
   );
 }
