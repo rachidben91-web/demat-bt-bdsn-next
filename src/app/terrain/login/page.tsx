@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { redirect } from "next/navigation";
 import { LoginForm } from "@/app/login/login-form";
+import { TerrainInstallCardClient } from "@/components/terrain-install-card-client";
 import { getCurrentAuthContext } from "@/lib/auth";
 
 export default async function TerrainLoginPage() {
@@ -35,13 +36,13 @@ export default async function TerrainLoginPage() {
                 />
               </div>
               <p className="mt-8 text-xs font-semibold uppercase tracking-[0.34em] text-cyan-50/84">
-                Acces terrain
+                Accès terrain
               </p>
               <h1 className="mt-4 text-[2.7rem] font-semibold leading-[0.95] tracking-[-0.05em] text-white">
-                DEMAT-BT Mobile
+                DEMAT-BT Terrain
               </h1>
-              <p className="mt-4 max-w-[22ch] text-sm leading-7 text-cyan-50/90">
-                Connexion des techniciens pour consulter les envois mobiles publiés.
+              <p className="mt-4 max-w-[24ch] text-sm leading-7 text-cyan-50/90">
+                Connexion des techniciens pour accéder au hub terrain et récupérer la journée.
               </p>
             </div>
           </section>
@@ -57,8 +58,9 @@ export default async function TerrainLoginPage() {
               Connecte-toi avec ton email ou ton identifiant technicien.
             </p>
             <div className="mt-8">
-              <LoginForm submitLabel="Acceder a l'application terrain" variant="terrain" />
+              <LoginForm submitLabel="Accéder à DEMAT-BT Terrain" variant="terrain" />
             </div>
+            <TerrainInstallCardClient className="mt-6" />
           </section>
         </div>
       </div>

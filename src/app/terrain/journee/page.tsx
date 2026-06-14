@@ -1,14 +1,13 @@
-import { TerrainHub } from "@/components/terrain-hub";
+import { TerrainWorkspace } from "@/components/terrain-workspace";
 import { getTerrainPageData } from "@/lib/terrain-page-data";
 
-export default async function TerrainPage() {
+export default async function TerrainDayPage() {
   const { auth, currentDateLabel, mobileDispatch, technician, terrainAccount } =
     await getTerrainPageData();
 
   return (
-    <TerrainHub
+    <TerrainWorkspace
       currentDateLabel={currentDateLabel}
-      detailHref="/terrain/journee"
       displayName={terrainAccount.fullName}
       mobileDispatch={mobileDispatch}
       technician={technician}

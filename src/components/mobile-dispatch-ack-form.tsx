@@ -31,7 +31,7 @@ export function MobileDispatchAckForm({
 
       {acknowledgedAt ? (
         <div className="rounded-[22px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          Journee bien recue.
+          Journée bien reçue.
         </div>
       ) : (
         <button
@@ -39,7 +39,7 @@ export function MobileDispatchAckForm({
           disabled={pending}
           type="submit"
         >
-          {pending ? "Confirmation..." : "J'ai bien recu ma journee"}
+          {pending ? "Confirmation..." : "J'ai bien reçu ma journée"}
         </button>
       )}
 

@@ -1,0 +1,23 @@
+{
+  "name": "DEMAT-BT Terrain",
+  "short_name": "BT Terrain",
+  "description": "Application terrain DEMAT-BT Terrain pour récupérer la journée, consulter les briefs et les interventions.",
+  "start_url": "/terrain",
+  "scope": "/terrain/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ecfeff",
+  "theme_color": "#0f766e",
+  "icons": [
+    {
+      "src": "/terrain-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/terrain-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
