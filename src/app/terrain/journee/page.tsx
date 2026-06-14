@@ -2,11 +2,12 @@ import { TerrainWorkspace } from "@/components/terrain-workspace";
 import { getTerrainPageData } from "@/lib/terrain-page-data";
 
 export default async function TerrainDayPage() {
-  const { auth, currentDateLabel, mobileDispatch, technician, terrainAccount } =
+  const { auth, currentDateKey, currentDateLabel, mobileDispatch, technician, terrainAccount } =
     await getTerrainPageData();
 
   return (
     <TerrainWorkspace
+      currentDateKey={currentDateKey}
       currentDateLabel={currentDateLabel}
       displayName={terrainAccount.fullName}
       mobileDispatch={mobileDispatch}

@@ -2,11 +2,12 @@ import { TerrainHub } from "@/components/terrain-hub";
 import { getTerrainPageData } from "@/lib/terrain-page-data";
 
 export default async function TerrainPage() {
-  const { auth, currentDateLabel, mobileDispatch, technician, terrainAccount } =
+  const { auth, currentDateKey, currentDateLabel, mobileDispatch, technician, terrainAccount } =
     await getTerrainPageData();
 
   return (
     <TerrainHub
+      currentDateKey={currentDateKey}
       currentDateLabel={currentDateLabel}
       detailHref="/terrain/journee"
       displayName={terrainAccount.fullName}

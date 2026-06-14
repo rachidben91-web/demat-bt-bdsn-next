@@ -18,6 +18,7 @@ type TerrainTechnician = {
 };
 
 type TerrainHubProps = {
+  currentDateKey: string;
   currentDateLabel: string;
   detailHref: string;
   displayName: string;
@@ -41,37 +42,37 @@ function buildStatusBadges(
   const badges: StatusBadge[] = [
     {
       label: TERRAIN_ROLE_LABELS[terrainRole],
-      tone: "info" as const,
+      tone: "info",
     },
     {
       label: currentDateLabel,
-      tone: "neutral" as const,
+      tone: "neutral",
     },
   ];
 
   if (technician?.site) {
     badges.push({
       label: `Site ${technician.site}`,
-      tone: "neutral" as const,
+      tone: "neutral",
     });
   }
 
   if (mobileDispatch) {
     badges.push({
-      label: mobileDispatch.acknowledgedAt ? "Journée reçue" : "Nouvelle journée",
-      tone: mobileDispatch.acknowledgedAt ? ("success" as const) : ("warning" as const),
+      label: mobileDispatch.acknowledgedAt ? "Mission reçue" : "Nouvelle mission",
+      tone: mobileDispatch.acknowledgedAt ? "success" : "warning",
     });
   } else {
     badges.push({
-      label: "Aucune journée publiée",
-      tone: "muted" as const,
+      label: "Aucune mission publiée",
+      tone: "muted",
     });
   }
 
   return badges;
 }
 
-function badgeClassName(tone: "info" | "neutral" | "success" | "warning" | "muted") {
+function badgeClassName(tone: StatusBadge["tone"]) {
   switch (tone) {
     case "info":
       return "border-cyan-200 bg-cyan-50 text-cyan-800";
@@ -88,6 +89,7 @@ function badgeClassName(tone: "info" | "neutral" | "success" | "warning" | "mute
 }
 
 export function TerrainHub({
+  currentDateKey,
   currentDateLabel,
   detailHref,
   displayName,
@@ -98,6 +100,8 @@ export function TerrainHub({
 }: TerrainHubProps) {
   const firstName = extractFirstName(displayName, userEmail);
   const dispatchStats = mobileDispatch ? buildDispatchStats(mobileDispatch.btPayload) : null;
+  const missionDateLabel = mobileDispatch ? formatMissionDate(mobileDispatch.missionDate) : null;
+  const isMissionToday = mobileDispatch ? mobileDispatch.missionDate === currentDateKey : false;
   const statusBadges = buildStatusBadges(
     currentDateLabel,
     terrainRole,
@@ -129,8 +133,8 @@ export function TerrainHub({
                   Bonjour {firstName}
                 </h1>
                 <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
-                  Accède à ta journée du jour, puis retrouve ici les futurs modules
-                  terrain comme la messagerie et les infos utiles.
+                  Accède à la mission publiée, puis retrouve ici les futurs modules terrain
+                  comme la messagerie et les infos utiles.
                 </p>
                 <div className="mt-5 flex flex-wrap gap-2">
                   {statusBadges.map((badge) => (
@@ -156,31 +160,54 @@ export function TerrainHub({
         <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.95fr)]">
           <section className="rounded-[30px] border border-emerald-100/90 bg-[linear-gradient(155deg,rgba(240,253,244,0.95),rgba(255,255,255,0.93))] px-5 py-6 shadow-[0_20px_46px_rgba(148,163,184,0.14)]">
             <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-emerald-700">
-              Journée
+              Mission
             </p>
             <h2 className="mt-3 text-[2rem] font-semibold tracking-[-0.04em] text-slate-950">
               {mobileDispatch
-                ? `${mobileDispatch.btCount} intervention${mobileDispatch.btCount > 1 ? "s" : ""} prêtes`
-                : "Aucune journée disponible"}
+                ? `${mobileDispatch.btCount} intervention${mobileDispatch.btCount > 1 ? "s" : ""} ${
+                    mobileDispatch.btCount > 1 ? "prévues" : "prévue"
+                  }`
+                : "Aucune mission disponible"}
             </h2>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
               {mobileDispatch
-                ? `Mission du ${formatMissionDate(mobileDispatch.missionDate)} - publiée le ${formatTimestamp(
+                ? `Date de mission : ${missionDateLabel}. Publication le ${formatTimestamp(
                     mobileDispatch.publishedAt,
                   )}.`
-                : "Dès qu'une journée est préparée et envoyée, elle apparaît ici avec son statut de réception."}
+                : "Dès qu'une mission est préparée et envoyée, elle apparaît ici avec son statut de réception."}
             </p>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            {mobileDispatch && !isMissionToday ? (
+              <div className="mt-4 rounded-[22px] border border-amber-200 bg-amber-50/90 px-4 py-3">
+                <p className="text-sm font-semibold text-amber-900">
+                  Attention : cette mission est prévue pour le {missionDateLabel}, pas pour le{" "}
+                  {currentDateLabel}.
+                </p>
+                <p className="mt-1 text-sm leading-6 text-amber-800">
+                  Vérifie bien la date avant d&apos;ouvrir les BT pour éviter de repartir sur
+                  une ancienne journée.
+                </p>
+              </div>
+            ) : null}
+
+            <div className="mt-5 grid grid-cols-2 gap-3 max-sm:grid-cols-1 xl:grid-cols-4">
               <div className="rounded-[22px] border border-white/85 bg-white/90 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
-                  État
+                  Date de mission
+                </p>
+                <p className="mt-2 text-sm font-semibold text-slate-950">
+                  {missionDateLabel ?? "À confirmer"}
+                </p>
+              </div>
+              <div className="rounded-[22px] border border-white/85 bg-white/90 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                  Statut
                 </p>
                 <p className="mt-2 text-sm font-semibold text-slate-950">
                   {mobileDispatch
                     ? mobileDispatch.acknowledgedAt
                       ? "Réception confirmée"
-                      : "À récupérer"
+                      : "À consulter"
                     : "En attente"}
                 </p>
               </div>
@@ -194,10 +221,13 @@ export function TerrainHub({
               </div>
               <div className="rounded-[22px] border border-white/85 bg-white/90 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
-                  Alertes
+                  Points à lire
                 </p>
                 <p className="mt-2 text-sm font-semibold text-slate-950">
                   {dispatchStats?.alertCount ?? 0} élément{dispatchStats?.alertCount === 1 ? "" : "s"}
+                </p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Analyses de risques et observations à relire avant intervention.
                 </p>
               </div>
             </div>
@@ -208,11 +238,11 @@ export function TerrainHub({
                   className="inline-flex items-center justify-center rounded-[22px] bg-cyan-700 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(8,145,178,0.24)] transition hover:-translate-y-0.5 hover:bg-cyan-800"
                   href={detailHref}
                 >
-                  Consulter ma journée
+                  Consulter ma mission
                 </Link>
               ) : (
                 <span className="inline-flex cursor-not-allowed items-center justify-center rounded-[22px] border border-slate-200 bg-slate-100 px-5 py-3 text-sm font-semibold text-slate-500">
-                  En attente d&apos;une journée
+                  En attente d&apos;une mission
                 </span>
               )}
               {mobileDispatch ? (
@@ -241,8 +271,8 @@ export function TerrainHub({
                     </span>
                   </div>
                   <p className="mt-2 text-sm leading-6 text-slate-600">
-                    Référer un client, envoyer une confirmation ou recevoir un message
-                    lié à une intervention.
+                    Référer un client, envoyer une confirmation ou recevoir un message lié
+                    à une intervention.
                   </p>
                 </article>
 
@@ -256,8 +286,8 @@ export function TerrainHub({
                     </span>
                   </div>
                   <p className="mt-2 text-sm leading-6 text-slate-600">
-                    Contacts, procédures, rappels sécurité et autres informations utiles
-                    à envoyer au terrain.
+                    Contacts, procédures, rappels sécurité et autres informations utiles à
+                    envoyer au terrain.
                   </p>
                 </article>
               </div>

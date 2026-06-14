@@ -40,6 +40,22 @@ export function formatMissionDate(value: string) {
   }).format(new Date(`${value}T12:00:00Z`));
 }
 
+export function toParisDateKey(value: Date | string) {
+  const date = typeof value === "string" ? new Date(value) : value;
+  const parts = new Intl.DateTimeFormat("fr-FR", {
+    timeZone: "Europe/Paris",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const year = parts.find((part) => part.type === "year")?.value ?? "0000";
+  const month = parts.find((part) => part.type === "month")?.value ?? "00";
+  const day = parts.find((part) => part.type === "day")?.value ?? "00";
+
+  return `${year}-${month}-${day}`;
+}
+
 export function formatTimestamp(value: string) {
   return new Intl.DateTimeFormat("fr-FR", {
     dateStyle: "short",
@@ -136,6 +152,8 @@ export function extractTimeWindow(value: string) {
 export function buildDispatchStats(btPayload: MobileDispatchBtPayload[]) {
   let documentCount = 0;
   let alertCount = 0;
+  let riskCount = 0;
+  let observationCount = 0;
   let earliestStart: number | null = null;
   let latestEnd: number | null = null;
 
@@ -144,10 +162,12 @@ export function buildDispatchStats(btPayload: MobileDispatchBtPayload[]) {
 
     if (compactText(bt.analyseDesRisques)) {
       alertCount += 1;
+      riskCount += 1;
     }
 
     if (compactText(bt.observations)) {
       alertCount += 1;
+      observationCount += 1;
     }
 
     const window = extractTimeWindow(bt.duree);
@@ -165,6 +185,8 @@ export function buildDispatchStats(btPayload: MobileDispatchBtPayload[]) {
   return {
     alertCount,
     documentCount,
+    observationCount,
+    riskCount,
     scheduleLabel:
       earliestStart !== null && latestEnd !== null
         ? `${formatClock(earliestStart)} - ${formatClock(latestEnd)}`

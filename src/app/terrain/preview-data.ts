@@ -1,4 +1,5 @@
 import type { MobileDispatchItem } from "@/lib/mobile-dispatch";
+import { toParisDateKey } from "@/lib/terrain-ui";
 
 export const previewDispatch: MobileDispatchItem = {
   id: "preview-mobile-dispatch",
@@ -103,6 +104,8 @@ export const previewCurrentDateLabel = new Intl.DateTimeFormat("fr-FR", {
   dateStyle: "full",
   timeZone: "Europe/Paris",
 }).format(new Date("2026-06-14T08:00:00.000Z"));
+
+export const previewCurrentDateKey = toParisDateKey(new Date("2026-06-14T08:00:00.000Z"));
 
 export const previewTechnician = {
   managerName: "Karim Deboussi",

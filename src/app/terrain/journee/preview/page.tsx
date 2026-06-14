@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { TerrainWorkspace } from "@/components/terrain-workspace";
 import {
+  previewCurrentDateKey,
   previewCurrentDateLabel,
   previewDispatch,
   previewTechnician,
@@ -13,6 +14,7 @@ export default function TerrainPreviewDayPage() {
 
   return (
     <TerrainWorkspace
+      currentDateKey={previewCurrentDateKey}
       currentDateLabel={previewCurrentDateLabel}
       displayName="BENALLOU Radouane"
       mobileDispatch={previewDispatch}

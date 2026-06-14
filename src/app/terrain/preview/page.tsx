@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { TerrainHub } from "@/components/terrain-hub";
 import {
+  previewCurrentDateKey,
   previewCurrentDateLabel,
   previewDispatch,
   previewTechnician,
@@ -13,6 +14,7 @@ export default function TerrainPreviewPage() {
 
   return (
     <TerrainHub
+      currentDateKey={previewCurrentDateKey}
       currentDateLabel={previewCurrentDateLabel}
       detailHref="/terrain/journee/preview"
       displayName="BENALLOU Radouane"

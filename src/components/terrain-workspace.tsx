@@ -21,6 +21,7 @@ type TerrainTechnician = {
 };
 
 type TerrainWorkspaceProps = {
+  currentDateKey: string;
   currentDateLabel: string;
   displayName: string;
   mobileDispatch: MobileDispatchItem | null;
@@ -30,6 +31,7 @@ type TerrainWorkspaceProps = {
 };
 
 export function TerrainWorkspace({
+  currentDateKey,
   currentDateLabel,
   displayName,
   mobileDispatch,
@@ -41,6 +43,8 @@ export function TerrainWorkspace({
   const roleLabel = TERRAIN_ROLE_LABELS[terrainRole];
   const dispatchStats = mobileDispatch ? buildDispatchStats(mobileDispatch.btPayload) : null;
   const isAcknowledged = Boolean(mobileDispatch?.acknowledgedAt);
+  const missionDateLabel = mobileDispatch ? formatMissionDate(mobileDispatch.missionDate) : null;
+  const isMissionToday = mobileDispatch ? mobileDispatch.missionDate === currentDateKey : false;
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#e0f2fe_0%,#f3f8ff_26%,#eef6ff_60%,#f7fafc_100%)] px-4 py-4 text-slate-950 sm:px-5 lg:px-6">
@@ -52,18 +56,18 @@ export function TerrainWorkspace({
                 DEMAT-BT Terrain
               </p>
               <h1 className="mt-3 text-[2.2rem] font-semibold tracking-[-0.05em] text-slate-950 sm:text-[2.5rem]">
-                Journée de {firstName}
+                Mission de {firstName}
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
-                Lecture détaillée de la journée du jour, des alertes et des BT publiés
-                pour le terrain.
+                Vérifie ici la date réelle de mission, les BT publiés et les points de
+                vigilance avant de partir sur le terrain.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
                 <span className="rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-800">
                   {roleLabel}
                 </span>
                 <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
-                  {currentDateLabel}
+                  Aujourd&apos;hui : {currentDateLabel}
                 </span>
                 {technician?.site ? (
                   <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
@@ -104,15 +108,17 @@ export function TerrainWorkspace({
                   </div>
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-emerald-700">
-                      Journée du jour
+                      Mission terrain
                     </p>
                     <h2 className="mt-2 text-[1.8rem] font-semibold tracking-[-0.03em] text-slate-950">
-                      {mobileDispatch.btCount} intervention{mobileDispatch.btCount > 1 ? "s" : ""}{" "}
-                      pour aujourd&apos;hui
+                      Mission prévue le {missionDateLabel}
                     </h2>
+                    <p className="mt-2 text-sm font-semibold text-slate-700">
+                      {mobileDispatch.btCount} intervention{mobileDispatch.btCount > 1 ? "s" : ""}{" "}
+                      programmée{mobileDispatch.btCount > 1 ? "s" : ""} pour cette date.
+                    </p>
                     <p className="mt-2 text-sm leading-7 text-slate-600">
-                      Mission du {formatMissionDate(mobileDispatch.missionDate)} - publiée le{" "}
-                      {formatTimestamp(mobileDispatch.publishedAt)}.
+                      Publication le {formatTimestamp(mobileDispatch.publishedAt)}.
                     </p>
                   </div>
                 </div>
@@ -121,7 +127,7 @@ export function TerrainWorkspace({
                     Statut mobile
                   </p>
                   <p className="mt-2 text-sm font-semibold text-slate-900">
-                    {isAcknowledged ? "Journée bien reçue" : "Confirmation attendue"}
+                    {isAcknowledged ? "Mission bien reçue" : "Confirmation attendue"}
                   </p>
                   <p className="mt-2 text-xs leading-6 text-slate-500">
                     {isAcknowledged
@@ -131,12 +137,28 @@ export function TerrainWorkspace({
                 </div>
               </div>
 
-              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {!isMissionToday ? (
+                <div className="mt-5 rounded-[24px] border border-amber-200 bg-amber-50/90 px-4 py-4">
+                  <p className="text-sm font-semibold text-amber-900">
+                    Attention : la mission affichée est prévue pour le {missionDateLabel}, alors
+                    qu&apos;aujourd&apos;hui nous sommes le {currentDateLabel}.
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-amber-800">
+                    Ne démarre pas ces BT sans vérifier que tu consultes bien la bonne date de
+                    mission.
+                  </p>
+                </div>
+              ) : null}
+
+              <div className="mt-5 grid grid-cols-2 gap-3 max-sm:grid-cols-1 xl:grid-cols-4">
                 <div className="rounded-[22px] border border-white/85 bg-white/90 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
-                    Activité
+                    Interventions
                   </p>
                   <p className="mt-2 text-lg font-semibold text-slate-950">
+                    {mobileDispatch.btCount}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
                     {mobileDispatch.activitySummary}
                   </p>
                 </div>
@@ -155,18 +177,23 @@ export function TerrainWorkspace({
                   <p className="mt-2 text-lg font-semibold text-slate-950">
                     {dispatchStats?.documentCount ?? 0}
                   </p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Pièces jointes recensées dans les BT.
+                  </p>
                 </div>
                 <div className="rounded-[22px] border border-white/85 bg-white/90 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
-                    Alertes
+                    Points à lire
                   </p>
                   <p className="mt-2 text-lg font-semibold text-slate-950">
                     {dispatchStats?.alertCount ?? 0}
                   </p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    {dispatchStats?.riskCount ?? 0} risque{dispatchStats?.riskCount === 1 ? "" : "s"}{" "}
+                    + {dispatchStats?.observationCount ?? 0} observation
+                    {(dispatchStats?.observationCount ?? 0) === 1 ? "" : "s"}.
+                  </p>
                 </div>
-              </div>
-
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <div className="rounded-[22px] border border-white/85 bg-white/88 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
                     Consigne de départ
@@ -204,7 +231,7 @@ export function TerrainWorkspace({
               {compactText(mobileDispatch.observation) ? (
                 <div className="mt-4 rounded-[24px] border border-cyan-200 bg-cyan-50/80 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-700">
-                    Brief du jour
+                    Brief de mission
                   </p>
                   <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
                     {mobileDispatch.observation}
@@ -216,14 +243,15 @@ export function TerrainWorkspace({
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
-                      Interventions du jour
+                      BT de la mission
                     </p>
                     <h3 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-slate-950">
-                      Lecture rapide des BT
+                      Lecture rapide des interventions
                     </h3>
                   </div>
                   <p className="text-sm text-slate-500">
-                    Adresse, horaire, client, documents et alertes sont regroupés sur chaque carte.
+                    Adresse, horaire, client, documents et points de vigilance sont regroupés
+                    sur chaque carte.
                   </p>
                 </div>
                 <div className="mt-3 space-y-3">
@@ -267,8 +295,8 @@ export function TerrainWorkspace({
                           </p>
                         ) : null}
 
-                        <div className="mt-4 grid gap-3 lg:grid-cols-3">
-                          <div className="rounded-2xl border border-white/80 bg-white/85 px-3 py-3">
+                        <div className="mt-4 grid grid-cols-2 gap-3 max-sm:grid-cols-1 xl:grid-cols-3">
+                          <div className="rounded-2xl border border-white/80 bg-white/85 px-3 py-3 col-span-2 xl:col-span-1">
                             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
                               Horaire
                             </p>
@@ -346,7 +374,7 @@ export function TerrainWorkspace({
                   Confirmation de réception
                 </p>
                 <p className="mt-2 text-sm text-slate-600">
-                  Confirme ici que la journée affichée sur mobile est bien reçue et exploitable.
+                  Confirme ici que la mission affichée sur mobile est bien reçue et exploitable.
                 </p>
                 <MobileDispatchAckForm
                   acknowledgedAt={mobileDispatch.acknowledgedAt}
@@ -362,13 +390,13 @@ export function TerrainWorkspace({
                 </div>
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-cyan-700">
-                    Journée
+                    Mission
                   </p>
                   <h2 className="mt-2 text-[1.8rem] font-semibold tracking-[-0.03em] text-slate-950">
                     Aucun envoi reçu pour le moment
                   </h2>
                   <p className="mt-3 max-w-[56ch] text-sm leading-7 text-slate-600">
-                    Retourne à l&apos;accueil pour vérifier l&apos;arrivée d&apos;une journée ou
+                    Retourne à l&apos;accueil pour vérifier l&apos;arrivée d&apos;une mission ou
                     attendre une publication du back-office.
                   </p>
                 </div>

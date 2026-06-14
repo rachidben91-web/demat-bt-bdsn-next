@@ -1,6 +1,7 @@
 import { getTechnicianById } from "@/lib/admin-technicians";
 import { requireTerrainAccess } from "@/lib/auth";
 import { getLatestMobileDispatchForTechnician } from "@/lib/mobile-dispatch";
+import { toParisDateKey } from "@/lib/terrain-ui";
 
 export async function getTerrainPageData() {
   const auth = await requireTerrainAccess();
@@ -19,9 +20,11 @@ export async function getTerrainPageData() {
     dateStyle: "full",
     timeZone: "Europe/Paris",
   }).format(new Date());
+  const currentDateKey = toParisDateKey(new Date());
 
   return {
     auth,
+    currentDateKey,
     currentDateLabel,
     mobileDispatch,
     technician,
