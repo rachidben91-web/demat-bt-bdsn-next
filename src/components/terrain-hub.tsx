@@ -27,13 +27,18 @@ type TerrainHubProps = {
   userEmail: string | null;
 };
 
+type StatusBadge = {
+  label: string;
+  tone: "info" | "neutral" | "success" | "warning" | "muted";
+};
+
 function buildStatusBadges(
   currentDateLabel: string,
   terrainRole: TerrainRole,
   technician: TerrainTechnician | null,
   mobileDispatch: MobileDispatchItem | null,
 ) {
-  const badges = [
+  const badges: StatusBadge[] = [
     {
       label: TERRAIN_ROLE_LABELS[terrainRole],
       tone: "info" as const,
