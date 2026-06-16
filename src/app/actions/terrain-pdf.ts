@@ -1,0 +1,132 @@
+"use server";
+
+import { requireTerrainAccess } from "@/lib/auth";
+import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
+
+type TerrainDispatchItemRow = {
+  bt_ids: unknown;
+  dispatch_id: string;
+  id: string;
+  office_account_id: string | null;
+  technician_id: string;
+};
+
+type TerrainDispatchRow = {
+  bt_import_day_id: string | null;
+};
+
+type TerrainBtEntryRow = {
+  bt_id: string;
+  derived_pdf_storage_path: string | null;
+  id: string;
+};
+
+function parseBtIds(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter(Boolean);
+}
+
+export async function getTerrainBtPdfSignedUrl(
+  dispatchItemId: string,
+  btEntryId: string,
+): Promise<{ url: string } | { error: string }> {
+  const auth = await requireTerrainAccess();
+  const adminSupabase = createServerSupabaseAdminClient();
+
+  if (!adminSupabase) {
+    return { error: "Client admin Supabase indisponible. Verifie la cle service role." };
+  }
+
+  try {
+    const normalizedDispatchItemId = dispatchItemId.trim();
+    const normalizedBtEntryId = btEntryId.trim();
+    const technicianId = auth.officeAccount?.technicianId ?? null;
+    const officeAccountId = auth.officeAccount?.id ?? null;
+
+    if (!normalizedDispatchItemId || !normalizedBtEntryId || !technicianId) {
+      return { error: "Parametres terrain invalides." };
+    }
+
+    const { data: dispatchItem, error: dispatchError } = await adminSupabase
+      .from("mobile_dispatch_items")
+      .select("id, dispatch_id, bt_ids, technician_id, office_account_id")
+      .eq("id", normalizedDispatchItemId)
+      .eq("technician_id", technicianId)
+      .maybeSingle<TerrainDispatchItemRow>();
+
+    if (dispatchError || !dispatchItem) {
+      return { error: "Mission introuvable." };
+    }
+
+    if (dispatchItem.office_account_id && officeAccountId && dispatchItem.office_account_id !== officeAccountId) {
+      return { error: "Mission non accessible pour ce compte terrain." };
+    }
+
+    const allowedBtIds = parseBtIds(dispatchItem.bt_ids);
+
+    const { data: dispatch, error: dispatchLookupError } = await adminSupabase
+      .from("mobile_dispatches")
+      .select("bt_import_day_id")
+      .eq("id", dispatchItem.dispatch_id)
+      .maybeSingle<TerrainDispatchRow>();
+
+    if (dispatchLookupError || !dispatch?.bt_import_day_id) {
+      return { error: "Source PDF introuvable pour cette mission." };
+    }
+
+    const { data: btEntryById, error: btEntryByIdError } = await adminSupabase
+      .from("bt_import_entries")
+      .select("id, bt_id, derived_pdf_storage_path")
+      .eq("import_day_id", dispatch.bt_import_day_id)
+      .eq("id", normalizedBtEntryId)
+      .maybeSingle<TerrainBtEntryRow>();
+
+    if (btEntryByIdError) {
+      return { error: "PDF non disponible pour ce BT." };
+    }
+
+    let btEntry = btEntryById ?? null;
+
+    if (!btEntry) {
+      const { data: btEntryByBtId, error: btEntryByBtIdError } = await adminSupabase
+        .from("bt_import_entries")
+        .select("id, bt_id, derived_pdf_storage_path")
+        .eq("import_day_id", dispatch.bt_import_day_id)
+        .eq("bt_id", normalizedBtEntryId)
+        .order("page_start", { ascending: true })
+        .limit(1)
+        .maybeSingle<TerrainBtEntryRow>();
+
+      if (btEntryByBtIdError || !btEntryByBtId) {
+        return { error: "PDF non disponible pour ce BT." };
+      }
+
+      btEntry = btEntryByBtId;
+    }
+
+    if (!allowedBtIds.includes(btEntry.bt_id) && !allowedBtIds.includes(btEntry.id)) {
+      return { error: "BT non lie a cette mission." };
+    }
+
+    if (!btEntry.derived_pdf_storage_path) {
+      return { error: "PDF non disponible pour ce BT." };
+    }
+
+    const { data: signedData, error: signedError } = await adminSupabase.storage
+      .from("bt-import-pdfs")
+      .createSignedUrl(btEntry.derived_pdf_storage_path, 30 * 60);
+
+    if (signedError || !signedData?.signedUrl) {
+      return { error: "Impossible de generer le lien PDF." };
+    }
+
+    return { url: signedData.signedUrl };
+  } catch {
+    return { error: "Impossible de generer le lien PDF." };
+  }
+}

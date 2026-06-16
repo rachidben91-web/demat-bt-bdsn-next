@@ -1,5 +1,6 @@
 import { Clock3, FileText, MapPin } from "lucide-react";
 import { MobileDispatchAckForm } from "@/components/mobile-dispatch-ack-form";
+import { TerrainBtPdfButton } from "@/components/terrain-bt-pdf-button";
 import { TerrainAppHeader } from "@/components/terrain-app-header";
 import type { MobileDispatchItem } from "@/lib/mobile-dispatch";
 import { TERRAIN_ROLE_LABELS, type TerrainRole } from "@/lib/office-access";
@@ -278,6 +279,10 @@ export function TerrainWorkspace({
                             Aucun document annexe
                           </span>
                         )}
+                      </div>
+
+                      <div className="mt-4">
+                        <TerrainBtPdfButton btEntryId={bt.btId} dispatchItemId={mobileDispatch.id} />
                       </div>
 
                       {compactText(bt.analyseDesRisques) ? (

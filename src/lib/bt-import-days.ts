@@ -1,4 +1,10 @@
-import type { ExtractedBt, ExtractedBtDocument, ExtractedTeamMember } from "@/lib/pdf-import/types";
+import type {
+  BtBriefWorkflowStatus,
+  BtSourceMode,
+  ExtractedBt,
+  ExtractedBtDocument,
+  ExtractedTeamMember,
+} from "@/lib/pdf-import/types";
 import { createServerSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/server";
 
 export type BtImportDaySummary = {
@@ -35,6 +41,7 @@ type BtImportDayRow = {
 };
 
 type BtImportEntryRow = {
+  id: string;
   bt_id: string;
   page_start: number;
   objet: string;
@@ -48,9 +55,37 @@ type BtImportEntryRow = {
   observations: string;
   team: unknown;
   docs: unknown;
+  mobile_ready?: boolean | null;
+  mobile_ready_at?: string | null;
+  mobile_ready_by_email?: string | null;
+  source_mode?: string | null;
+  brief_workflow_status?: string | null;
+  team_override?: unknown;
+  workflow_note?: string | null;
+  o2_pending_at?: string | null;
+  o2_pending_by_email?: string | null;
+  o2_validated_at?: string | null;
+  o2_validated_by_email?: string | null;
+  replacement_of_entry_id?: string | null;
+  replaced_by_entry_id?: string | null;
+  superseded_at?: string | null;
+  superseded_by_email?: string | null;
   derived_pdf_storage_path: string | null;
   derived_pdf_page_count: number | null;
+  created_at?: string;
 };
+
+function parseSourceMode(value: string | null | undefined): BtSourceMode {
+  return value === "unitary_import" ? "unitary_import" : "daily_pdf";
+}
+
+function parseBriefWorkflowStatus(value: string | null | undefined): BtBriefWorkflowStatus {
+  if (value === "o2_pending" || value === "o2_validated") {
+    return value;
+  }
+
+  return "normal";
+}
 
 function mapDayRow(row: BtImportDayRow): BtImportDaySummary {
   return {
@@ -111,6 +146,7 @@ function parseDocs(value: unknown): ExtractedBtDocument[] {
 
 function mapEntryRow(row: BtImportEntryRow): ExtractedBt {
   return {
+    entryId: row.id,
     id: row.bt_id,
     pageStart: row.page_start,
     objet: row.objet,
@@ -126,6 +162,21 @@ function mapEntryRow(row: BtImportEntryRow): ExtractedBt {
     docs: parseDocs(row.docs),
     derivedPdfStoragePath: row.derived_pdf_storage_path,
     derivedPdfPageCount: row.derived_pdf_page_count,
+    mobileReady: Boolean(row.mobile_ready),
+    mobileReadyAt: row.mobile_ready_at ?? null,
+    mobileReadyByEmail: row.mobile_ready_by_email ?? null,
+    sourceMode: parseSourceMode(row.source_mode),
+    briefWorkflowStatus: parseBriefWorkflowStatus(row.brief_workflow_status),
+    teamOverride: parseTeam(row.team_override),
+    workflowNote: row.workflow_note ?? null,
+    o2PendingAt: row.o2_pending_at ?? null,
+    o2PendingByEmail: row.o2_pending_by_email ?? null,
+    o2ValidatedAt: row.o2_validated_at ?? null,
+    o2ValidatedByEmail: row.o2_validated_by_email ?? null,
+    replacementOfEntryId: row.replacement_of_entry_id ?? null,
+    replacedByEntryId: row.replaced_by_entry_id ?? null,
+    supersededAt: row.superseded_at ?? null,
+    supersededByEmail: row.superseded_by_email ?? null,
   };
 }
 
@@ -172,9 +223,7 @@ export async function getBtImportDayOverview(
 
   const { data: entriesData, error: entriesError } = await supabase
     .from("bt_import_entries")
-    .select(
-      "bt_id, page_start, objet, date_prevue, client, localisation, at_num, designation, duree, analyse_des_risques, observations, team, docs, derived_pdf_storage_path, derived_pdf_page_count",
-    )
+    .select("*")
     .eq("import_day_id", currentDay.id)
     .order("page_start", { ascending: true });
 

@@ -19,6 +19,8 @@ export type ActivityDefinition = {
   label: string;
   color: string;
   status: ActivityStatus;
+  requiredTechnicians: number | null;
+  showInDailyCheck: boolean;
 };
 
 export type DailyAssignment = {
@@ -161,39 +163,39 @@ export const sidebarSteps = [
 ];
 
 export const activityDefinitions: ActivityDefinition[] = [
-  { id: "is-jour-1", label: "IS JOUR 1", color: "#fff400", status: "Present" },
-  { id: "is-jour-2", label: "IS JOUR 2", color: "#ffef00", status: "Present" },
-  { id: "is-jour-3", label: "IS JOUR 3", color: "#fce300", status: "Present" },
-  { id: "dep-1", label: "DEP 1", color: "#f7db00", status: "Present" },
-  { id: "dep-2", label: "DEP 2", color: "#e8ce00", status: "Present" },
-  { id: "dep-3", label: "DEP 3", color: "#d4b400", status: "Present" },
-  { id: "astreinte", label: "ASTREINTE", color: "#1d9bd7", status: "Present" },
-  { id: "clientele", label: "CLIENTELE", color: "#d9d9d9", status: "Present" },
-  { id: "travaux", label: "TRAVAUX", color: "#95b7de", status: "Present" },
-  { id: "travaux-astreinte", label: "TRAVAUX ASTREINTE", color: "#416fbd", status: "Present" },
-  { id: "cicm", label: "CICM", color: "#abc88e", status: "Present" },
-  { id: "rob", label: "ROB", color: "#aad090", status: "Present" },
-  { id: "cicm-optic", label: "CICM OPTIC", color: "#aad18e", status: "Present" },
-  { id: "rsf", label: "RSF", color: "#aad18e", status: "Present" },
-  { id: "loca", label: "LOCA", color: "#f7b788", status: "Present" },
-  { id: "immeuble-neuf", label: "IMMEUBLE NEUF", color: "#c69300", status: "Present" },
-  { id: "immeuble-monoxyde", label: "IMMEUBLE MONOXYDE", color: "#c59700", status: "Present" },
-  { id: "prepa-immeuble", label: "PREPA IMMEUBLE", color: "#cc9f00", status: "Present" },
-  { id: "magasin", label: "MAGASIN", color: "#806400", status: "Present" },
-  { id: "fp", label: "FP", color: "#ff0c0c", status: "Absent" },
-  { id: "air-pedagogique", label: "AIR PEDAGOGIQUE", color: "#07a646", status: "Present" },
-  { id: "prepa-eap", label: "PREPA EAP", color: "#0b9c4b", status: "Present" },
-  { id: "reunion", label: "REUNION D'EQUIPE", color: "#7f6500", status: "Present" },
-  { id: "administratif", label: "ADMINISTRATIF", color: "#7d6500", status: "Present" },
-  { id: "sortie-astreinte", label: "SORTIE D'ASTREINTE", color: "#c7d1df", status: "Present" },
-  { id: "cp", label: "CP", color: "#d00000", status: "Absent" },
-  { id: "10", label: "10", color: "#d00000", status: "Absent" },
-  { id: "21", label: "21", color: "#d00000", status: "Absent" },
-  { id: "41", label: "41", color: "#d00000", status: "Absent" },
-  { id: "rtt", label: "RTT", color: "#d00000", status: "Absent" },
-  { id: "abs", label: "ABS", color: "#d00000", status: "Absent" },
-  { id: "pat", label: "PAT", color: "#d00000", status: "Absent" },
-  { id: "a2t", label: "A2T", color: "#999999", status: "Greve" },
+  { id: "is-jour-1", label: "IS JOUR 1", color: "#fff400", status: "Present", requiredTechnicians: 1, showInDailyCheck: true },
+  { id: "is-jour-2", label: "IS JOUR 2", color: "#ffef00", status: "Present", requiredTechnicians: 1, showInDailyCheck: true },
+  { id: "is-jour-3", label: "IS JOUR 3", color: "#fce300", status: "Present", requiredTechnicians: 1, showInDailyCheck: true },
+  { id: "dep-1", label: "DEP 1", color: "#f7db00", status: "Present", requiredTechnicians: null, showInDailyCheck: false },
+  { id: "dep-2", label: "DEP 2", color: "#e8ce00", status: "Present", requiredTechnicians: null, showInDailyCheck: false },
+  { id: "dep-3", label: "DEP 3", color: "#d4b400", status: "Present", requiredTechnicians: null, showInDailyCheck: false },
+  { id: "astreinte", label: "ASTREINTE", color: "#1d9bd7", status: "Present", requiredTechnicians: 6, showInDailyCheck: true },
+  { id: "clientele", label: "CLIENTELE", color: "#d9d9d9", status: "Present", requiredTechnicians: null, showInDailyCheck: false },
+  { id: "travaux", label: "TRAVAUX", color: "#95b7de", status: "Present", requiredTechnicians: null, showInDailyCheck: false },
+  { id: "travaux-astreinte", label: "TRAVAUX ASTREINTE", color: "#416fbd", status: "Present", requiredTechnicians: 2, showInDailyCheck: true },
+  { id: "cicm", label: "CICM", color: "#abc88e", status: "Present", requiredTechnicians: null, showInDailyCheck: false },
+  { id: "rob", label: "ROB", color: "#aad090", status: "Present", requiredTechnicians: null, showInDailyCheck: false },
+  { id: "cicm-optic", label: "CICM OPTIC", color: "#aad18e", status: "Present", requiredTechnicians: null, showInDailyCheck: false },
+  { id: "rsf", label: "RSF", color: "#aad18e", status: "Present", requiredTechnicians: null, showInDailyCheck: false },
+  { id: "loca", label: "LOCA", color: "#f7b788", status: "Present", requiredTechnicians: 2, showInDailyCheck: true },
+  { id: "immeuble-neuf", label: "IMMEUBLE NEUF", color: "#c69300", status: "Present", requiredTechnicians: null, showInDailyCheck: false },
+  { id: "immeuble-monoxyde", label: "IMMEUBLE MONOXYDE", color: "#c59700", status: "Present", requiredTechnicians: null, showInDailyCheck: false },
+  { id: "prepa-immeuble", label: "PREPA IMMEUBLE", color: "#cc9f00", status: "Present", requiredTechnicians: null, showInDailyCheck: false },
+  { id: "magasin", label: "MAGASIN", color: "#806400", status: "Present", requiredTechnicians: null, showInDailyCheck: false },
+  { id: "fp", label: "FP", color: "#ff0c0c", status: "Absent", requiredTechnicians: null, showInDailyCheck: false },
+  { id: "air-pedagogique", label: "AIR PEDAGOGIQUE", color: "#07a646", status: "Present", requiredTechnicians: null, showInDailyCheck: false },
+  { id: "prepa-eap", label: "PREPA EAP", color: "#0b9c4b", status: "Present", requiredTechnicians: null, showInDailyCheck: false },
+  { id: "reunion", label: "REUNION D'EQUIPE", color: "#7f6500", status: "Present", requiredTechnicians: null, showInDailyCheck: false },
+  { id: "administratif", label: "ADMINISTRATIF", color: "#7d6500", status: "Present", requiredTechnicians: null, showInDailyCheck: false },
+  { id: "sortie-astreinte", label: "SORTIE D'ASTREINTE", color: "#c7d1df", status: "Present", requiredTechnicians: null, showInDailyCheck: false },
+  { id: "cp", label: "CP", color: "#d00000", status: "Absent", requiredTechnicians: null, showInDailyCheck: false },
+  { id: "10", label: "10", color: "#d00000", status: "Absent", requiredTechnicians: null, showInDailyCheck: false },
+  { id: "21", label: "21", color: "#d00000", status: "Absent", requiredTechnicians: null, showInDailyCheck: false },
+  { id: "41", label: "41", color: "#d00000", status: "Absent", requiredTechnicians: null, showInDailyCheck: false },
+  { id: "rtt", label: "RTT", color: "#d00000", status: "Absent", requiredTechnicians: null, showInDailyCheck: false },
+  { id: "abs", label: "ABS", color: "#d00000", status: "Absent", requiredTechnicians: null, showInDailyCheck: false },
+  { id: "pat", label: "PAT", color: "#d00000", status: "Absent", requiredTechnicians: null, showInDailyCheck: false },
+  { id: "a2t", label: "A2T", color: "#999999", status: "Greve", requiredTechnicians: null, showInDailyCheck: false },
 ];
 
 const presentActivities = [

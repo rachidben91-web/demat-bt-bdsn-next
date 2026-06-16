@@ -9,7 +9,29 @@ import { getCurrentAuthContext, getDefaultAppPath } from "@/lib/auth";
 
 export type LoginFormState = {
   error: string | null;
+  debugError?: string | null;
 };
+
+function getDebugErrorDetails(error: unknown) {
+  if (process.env.NODE_ENV === "production") {
+    return null;
+  }
+
+  if (!error || typeof error !== "object") {
+    return null;
+  }
+
+  const candidate = error as {
+    code?: string;
+    message?: string;
+    name?: string;
+    status?: number;
+  };
+
+  return [candidate.name, candidate.code, candidate.status, candidate.message]
+    .filter((value) => value !== undefined && value !== null && value !== "")
+    .join(" | ");
+}
 
 async function handleLogin(
   _previousState: LoginFormState,
@@ -22,6 +44,7 @@ async function handleLogin(
   if (!rawIdentifier || !password) {
     return {
       error: "Identifiant et mot de passe obligatoires.",
+      debugError: null,
     };
   }
 
@@ -33,6 +56,10 @@ async function handleLogin(
     if (!adminSupabase) {
       return {
         error: "Client admin Supabase indisponible. Verifie la cle service role.",
+        debugError:
+          process.env.NODE_ENV !== "production"
+            ? "Le client admin Supabase n'a pas pu etre initialise."
+            : null,
       };
     }
 
@@ -45,6 +72,9 @@ async function handleLogin(
     if (accountError || !account?.email) {
       return {
         error: "Connexion impossible. Verifie tes identifiants.",
+        debugError:
+          getDebugErrorDetails(accountError) ??
+          "Aucun compte office_accounts ne correspond a cet identifiant.",
       };
     }
 
@@ -58,8 +88,16 @@ async function handleLogin(
   });
 
   if (error) {
+    console.error("Login failed", {
+      code: error.code,
+      identifier: rawIdentifier,
+      message: error.message,
+      status: error.status,
+    });
+
     return {
       error: "Connexion impossible. Verifie tes identifiants.",
+      debugError: getDebugErrorDetails(error),
     };
   }
 

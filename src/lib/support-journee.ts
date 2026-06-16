@@ -34,6 +34,8 @@ export type ActivityOption = {
   label: string;
   color: string;
   status: ActivityStatus;
+  requiredTechnicians: number | null;
+  showInDailyCheck: boolean;
 };
 
 export type DailyAssignmentRow = {
@@ -129,6 +131,8 @@ type ActivityRow = {
   color: string | null;
   status: "present" | "absent" | "greve";
   display_order: number;
+  required_technicians: number | null;
+  show_in_daily_check: boolean | null;
 };
 
 type SupportDayRow = {
@@ -159,6 +163,74 @@ type SupportEntryRow = {
   gtv: string | null;
   display_order: number;
 };
+
+type ActivityRowBase = Omit<ActivityRow, "required_technicians" | "show_in_daily_check">;
+
+function getLegacyDailyCheckDefaults(code: string) {
+  switch (code) {
+    case "IS_JOUR_1":
+    case "IS_JOUR_2":
+    case "IS_JOUR_3":
+      return { requiredTechnicians: 1, showInDailyCheck: true };
+    case "LOCA":
+      return { requiredTechnicians: 2, showInDailyCheck: true };
+    case "TRAVAUX_ASTREINTE":
+      return { requiredTechnicians: 2, showInDailyCheck: true };
+    case "ASTREINTE":
+      return { requiredTechnicians: 6, showInDailyCheck: true };
+    default:
+      return { requiredTechnicians: null, showInDailyCheck: false };
+  }
+}
+
+function isMissingDailyCheckColumnError(message: string | undefined) {
+  if (!message) {
+    return false;
+  }
+
+  return (
+    message.includes("required_technicians") ||
+    message.includes("show_in_daily_check")
+  );
+}
+
+async function fetchActivityDefinitionRows(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+): Promise<ActivityRow[]> {
+  const extendedResult = await supabase
+    .from("activity_definitions")
+    .select("id, code, label, color, status, display_order, required_technicians, show_in_daily_check")
+    .eq("active", true)
+    .order("display_order", { ascending: true });
+
+  if (!extendedResult.error) {
+    return (extendedResult.data ?? []) as ActivityRow[];
+  }
+
+  if (!isMissingDailyCheckColumnError(extendedResult.error.message)) {
+    throw extendedResult.error;
+  }
+
+  const fallbackResult = await supabase
+    .from("activity_definitions")
+    .select("id, code, label, color, status, display_order")
+    .eq("active", true)
+    .order("display_order", { ascending: true });
+
+  if (fallbackResult.error) {
+    throw fallbackResult.error;
+  }
+
+  return ((fallbackResult.data ?? []) as ActivityRowBase[]).map((item) => {
+    const defaults = getLegacyDailyCheckDefaults(item.code);
+
+    return {
+      ...item,
+      required_technicians: defaults.requiredTechnicians,
+      show_in_daily_check: defaults.showInDailyCheck,
+    };
+  });
+}
 
 function mapStatus(status: "present" | "absent" | "greve"): ActivityStatus {
   if (status === "present") {
@@ -234,6 +306,62 @@ function fallbackData(): SupportJourneeData {
   };
 }
 
+function buildResolvedFallbackSummary(
+  fallback: SupportJourneeData["supportSummary"],
+  dayDate: string,
+  weatherNote: string,
+): SupportJourneeData["supportSummary"] {
+  return {
+    ...fallback,
+    dayId: null,
+    dayDate,
+    dateLabel: formatDateLabel(dayDate),
+    weekLabel: formatWeekLabel(dayDate),
+    weatherNote,
+    savedDayStatus: `Jour maquette : ${formatDateInput(dayDate)}`,
+    globalObservation: "",
+    lockedBy: null,
+    lockedAt: null,
+  };
+}
+
+export async function getSupportTechnicians(): Promise<TechnicianOption[]> {
+  if (!isSupabaseConfigured()) {
+    return fallbackTechnicians;
+  }
+
+  try {
+    const supabase = await createServerSupabaseClient();
+    const { data, error } = await supabase
+      .from("technicians")
+      .select(
+        "id, nni, last_name, first_name, display_name, site, role, color, ptc, ptd, sort_order, managers(name)",
+      )
+      .eq("active", true)
+      .order("sort_order", { ascending: true });
+
+    if (error) {
+      return fallbackTechnicians;
+    }
+
+    return ((data ?? []) as TechnicianRow[]).map((item) => ({
+      id: item.id,
+      nni: item.nni,
+      name: item.display_name,
+      lastName: item.last_name,
+      firstName: item.first_name,
+      site: item.site,
+      manager: getManagerName(item.managers),
+      role: item.role,
+      color: item.color ?? "#94a3b8",
+      ptc: item.ptc,
+      ptd: item.ptd,
+    }));
+  } catch {
+    return fallbackTechnicians;
+  }
+}
+
 function formatWeekLabel(dayDate: string) {
   const date = new Date(`${dayDate}T12:00:00Z`);
   const startOfYear = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
@@ -287,11 +415,11 @@ export async function getSupportJourneeData(selectedDate?: string): Promise<Supp
         zones: weatherBundle.headerZones,
       },
       dayWeather: weatherBundle.dayZones,
-      supportSummary: {
-        ...fallback.supportSummary,
-        dayDate: resolvedDate,
-        weatherNote: weatherBundle.weatherNote,
-      },
+      supportSummary: buildResolvedFallbackSummary(
+        fallback.supportSummary,
+        resolvedDate,
+        weatherBundle.weatherNote,
+      ),
     };
   }
 
@@ -300,7 +428,7 @@ export async function getSupportJourneeData(selectedDate?: string): Promise<Supp
 
     const [
       techniciansResult,
-      activitiesResult,
+      activityRows,
       supportDaysCountResult,
       supportDaysResult,
     ] = await Promise.all([
@@ -311,11 +439,7 @@ export async function getSupportJourneeData(selectedDate?: string): Promise<Supp
         )
         .eq("active", true)
         .order("sort_order", { ascending: true }),
-      supabase
-        .from("activity_definitions")
-        .select("id, code, label, color, status, display_order")
-        .eq("active", true)
-        .order("display_order", { ascending: true }),
+      fetchActivityDefinitionRows(supabase),
       supabase.from("support_days").select("*", { count: "exact", head: true }),
       supabase
         .from("support_days")
@@ -327,7 +451,6 @@ export async function getSupportJourneeData(selectedDate?: string): Promise<Supp
 
     if (
       techniciansResult.error ||
-      activitiesResult.error ||
       supportDaysCountResult.error ||
       supportDaysResult.error
     ) {
@@ -338,11 +461,11 @@ export async function getSupportJourneeData(selectedDate?: string): Promise<Supp
           zones: weatherBundle.headerZones,
         },
         dayWeather: weatherBundle.dayZones,
-        supportSummary: {
-          ...fallback.supportSummary,
-          dayDate: resolvedDate,
-          weatherNote: weatherBundle.weatherNote,
-        },
+        supportSummary: buildResolvedFallbackSummary(
+          fallback.supportSummary,
+          resolvedDate,
+          weatherBundle.weatherNote,
+        ),
       };
     }
 
@@ -360,11 +483,13 @@ export async function getSupportJourneeData(selectedDate?: string): Promise<Supp
       ptd: item.ptd,
     }));
 
-    const activityDefinitions = ((activitiesResult.data ?? []) as ActivityRow[]).map((item) => ({
+    const activityDefinitions = activityRows.map((item) => ({
       id: item.id,
       label: item.label,
       color: item.color ?? "#cbd5e1",
       status: mapStatus(item.status),
+      requiredTechnicians: item.required_technicians,
+      showInDailyCheck: item.show_in_daily_check ?? false,
     }));
 
     const supportDays = (supportDaysResult.data ?? []) as SupportDayRow[];
@@ -392,7 +517,7 @@ export async function getSupportJourneeData(selectedDate?: string): Promise<Supp
       .sort((left, right) => left.display_order - right.display_order);
     const technicianById = new Map(technicians.map((item) => [item.id, item]));
     const activityById = new Map(
-      ((activitiesResult.data ?? []) as ActivityRow[]).map((item) => [item.id, item]),
+      activityRows.map((item) => [item.id, item]),
     );
 
     const persistedAssignments = entries.map((entry, index) => {
@@ -611,11 +736,11 @@ export async function getSupportJourneeData(selectedDate?: string): Promise<Supp
         zones: weatherBundle.headerZones,
       },
       dayWeather: weatherBundle.dayZones,
-      supportSummary: {
-        ...fallback.supportSummary,
-        dayDate: resolvedDate,
-        weatherNote: weatherBundle.weatherNote,
-      },
+      supportSummary: buildResolvedFallbackSummary(
+        fallback.supportSummary,
+        resolvedDate,
+        weatherBundle.weatherNote,
+      ),
     };
   }
 }

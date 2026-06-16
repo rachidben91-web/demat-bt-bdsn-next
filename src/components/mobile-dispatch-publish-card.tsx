@@ -5,7 +5,7 @@ import {
   publishMobileDispatchAction,
   type MobileDispatchActionState,
 } from "@/app/actions/mobile-dispatch";
-import type { MobileDispatchStatusSnapshot } from "@/lib/mobile-dispatch";
+import type { DepartureInstruction, MobileDispatchStatusSnapshot } from "@/lib/mobile-dispatch";
 
 type MobileDispatchPublishCardProps = {
   btImportDayId: string | null;
@@ -26,6 +26,9 @@ type MobileDispatchPublishCardProps = {
     observations: string;
   }>;
   missionDate: string;
+  publicationNeedsRefresh?: boolean;
+  publishBlockedReason?: string | null;
+  readyBtCount?: number;
   siteCode: string | null;
   dispatchStatuses?: MobileDispatchStatusSnapshot[];
   technicians: Array<{ id: string; label: string }>;
@@ -41,10 +44,19 @@ export function MobileDispatchPublishCard({
   btPayload,
   dispatchStatuses = [],
   missionDate,
+  publicationNeedsRefresh = false,
+  publishBlockedReason = null,
+  readyBtCount = 0,
   siteCode,
   technicians,
 }: MobileDispatchPublishCardProps) {
-  const [departureInstruction, setDepartureInstruction] = useState("confirm");
+  const latestPublishedStatus =
+    [...dispatchStatuses].sort(
+      (left, right) => new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime(),
+    )[0] ?? null;
+  const [departureInstruction, setDepartureInstruction] = useState<DepartureInstruction>(
+    latestPublishedStatus?.departureInstruction ?? "confirm",
+  );
   const [state, formAction, pending] = useActionState(
     publishMobileDispatchAction,
     initialState,
@@ -56,14 +68,18 @@ export function MobileDispatchPublishCard({
 
   const publishedCount = dispatchStatuses.length;
   const acknowledgedCount = dispatchStatuses.filter((status) => status.acknowledgedAt).length;
-  const latestPublication = dispatchStatuses
-    .map((status) => status.publishedAt)
-    .filter(Boolean)
-    .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] ?? null;
+  const hasPublishedVersion = Boolean(latestPublishedStatus);
+  const departureInstructionIsLocked = hasPublishedVersion && !publicationNeedsRefresh;
+  const publishBlocked = Boolean(publishBlockedReason);
+  const latestPublication = latestPublishedStatus?.publishedAt ?? null;
   const latestAcknowledgement = dispatchStatuses
     .map((status) => status.acknowledgedAt)
     .filter((value): value is string => Boolean(value))
     .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] ?? null;
+  const selectedDepartureInstruction =
+    departureInstructionIsLocked && latestPublishedStatus
+      ? latestPublishedStatus.departureInstruction
+      : departureInstruction;
 
   const formatTimestamp = (value: string) =>
     new Intl.DateTimeFormat("fr-FR", {
@@ -87,6 +103,9 @@ export function MobileDispatchPublishCard({
           <p className="mt-1 text-[11px] leading-5 text-slate-600">
             Envoie ce groupe vers l&apos;application terrain avec une consigne de depart.
           </p>
+          <p className="mt-2 text-[11px] font-medium text-slate-500">
+            {readyBtCount}/{btPayload.length} BT pret(s) pour la prochaine publication.
+          </p>
         </div>
 
         {publishedCount > 0 ? (
@@ -97,6 +116,15 @@ export function MobileDispatchPublishCard({
                 : `Envoi mobile publie pour ${publishedCount} technicien(s).`}
             </p>
             <p className="mt-1 text-emerald-800/90">
+              {latestPublishedStatus
+                ? `Consigne envoyee : ${
+                    latestPublishedStatus.departureInstruction === "agency"
+                      ? "Passage agence obligatoire"
+                      : latestPublishedStatus.departureInstruction === "direct"
+                        ? "Depart direct autorise"
+                        : "Depart a confirmer"
+                  }. `
+                : null}
               {latestPublication ? `Derniere publication le ${formatTimestamp(latestPublication)}.` : null}
               {latestPublication && latestAcknowledgement ? " " : null}
               {latestAcknowledgement
@@ -108,11 +136,30 @@ export function MobileDispatchPublishCard({
           </div>
         ) : null}
 
+        {publicationNeedsRefresh ? (
+          <div className="rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-[11px] text-orange-800">
+            Une modification recente demande une republication mobile. La consigne de depart est de nouveau editable.
+          </div>
+        ) : null}
+
+        {departureInstructionIsLocked ? (
+          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-700">
+            Le type de depart est verrouille sur la derniere version envoyee.
+          </div>
+        ) : null}
+
+        {publishBlocked ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+            {publishBlockedReason}
+          </div>
+        ) : null}
+
         <select
-          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 outline-none focus:border-violet-400"
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 outline-none focus:border-violet-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+          disabled={departureInstructionIsLocked || pending}
           name="departure_instruction"
-          onChange={(event) => setDepartureInstruction(event.target.value)}
-          value={departureInstruction}
+          onChange={(event) => setDepartureInstruction(event.target.value as DepartureInstruction)}
+          value={selectedDepartureInstruction}
         >
           <option value="confirm">Depart a confirmer</option>
           <option value="agency">Passage agence obligatoire</option>
@@ -121,10 +168,18 @@ export function MobileDispatchPublishCard({
 
         <button
           className="rounded-xl bg-violet-600 px-3 py-2 text-[11px] font-semibold text-white shadow-[0_12px_24px_rgba(139,92,246,0.22)] disabled:cursor-not-allowed disabled:opacity-70"
-          disabled={pending}
+          disabled={pending || publishBlocked || departureInstructionIsLocked}
           type="submit"
         >
-          {pending ? "Publication..." : "Publier vers mobile"}
+          {pending
+            ? "Publication..."
+            : publishBlocked
+              ? "Publication bloquee"
+              : departureInstructionIsLocked
+                ? "Envoi deja publie"
+                : publicationNeedsRefresh
+                  ? "Republier vers mobile"
+                  : "Publier vers mobile"}
         </button>
 
         {state.error ? (

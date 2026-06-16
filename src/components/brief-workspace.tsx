@@ -3,7 +3,17 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { AppShellHeader } from "@/components/app-shell-header";
+import { BriefBtWorkflowActions } from "@/components/brief-bt-workflow-actions";
 import type { BtImportDayOverview } from "@/lib/bt-import-days";
+import {
+  getEffectiveTeam,
+  getOriginalTeamMembers,
+  getUniqueTeamMembers,
+  hasTeamOverride,
+  isBtO2Validated,
+  isBtPendingO2,
+  isBtSuperseded,
+} from "@/lib/bt-workflow";
 import { getModuleTheme } from "@/lib/module-theme";
 import { detectBtCategory, detectPrimaryBadge, getBtCategoryOrder } from "@/lib/pdf-import/badges";
 import { openPdfDocumentFromUrl } from "@/lib/pdf-import/pdf-viewer";
@@ -18,9 +28,10 @@ type BriefWorkspaceProps = {
   headerDateTimeLabel: string;
   isSuperAdmin?: boolean;
   role: string | null;
+  technicians: Array<{ id: string; label: string; nni: string }>;
   userEmail: string | null;
   weatherGeneratedAtLabel?: string | null;
-  weatherZones?: import("@/lib/weather").HeaderWeatherZone[];
+  weatherZones?: import("@/lib/weather").HeaderWeatherZone[]; 
 };
 
 type ViewerState = {
@@ -64,26 +75,6 @@ function formatDuree(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
-function getUniqueTeamMembers(bt: ExtractedBt) {
-  const members = new Map<string, string>();
-
-  for (const member of bt.team) {
-    const label = (member.name || member.nni || "").trim();
-
-    if (!label) {
-      continue;
-    }
-
-    const key = (member.nni || label).trim().toUpperCase();
-
-    if (!members.has(key)) {
-      members.set(key, label);
-    }
-  }
-
-  return [...members.entries()].map(([key, label]) => ({ key, label }));
-}
-
 function getTeamGroupSummary(bt: ExtractedBt) {
   const members = getUniqueTeamMembers(bt);
 
@@ -118,7 +109,7 @@ function getDocCounts(bt: ExtractedBt) {
 
 function getUniqueTechnicianCount(bts: ExtractedBt[]) {
   return new Set(
-    bts.flatMap((bt) => bt.team.map((member) => (member.nni || member.name || "").trim()).filter(Boolean)),
+    bts.flatMap((bt) => getEffectiveTeam(bt).map((member) => (member.nni || member.name || "").trim()).filter(Boolean)),
   ).size;
 }
 
@@ -187,12 +178,44 @@ function getAutoViewMode(profile: ScreenProfile): ViewMode {
   return profile === "wall" ? "compact" : "large";
 }
 
+function getBriefWorkflowMeta(bt: ExtractedBt) {
+  if (isBtSuperseded(bt)) {
+    return {
+      badgeClassName: "border-slate-200 bg-slate-100 text-slate-600",
+      cardClassName: "border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)]",
+      helperText: "BT remplace. Cette version n'est plus celle attendue en referent.",
+      label: "Remplace",
+    };
+  }
+
+  if (isBtPendingO2(bt)) {
+    return {
+      badgeClassName: "border-rose-200 bg-rose-50 text-rose-700",
+      cardClassName: "border-rose-200 bg-[linear-gradient(180deg,#fff8f8_0%,#fff1f1_100%)]",
+      helperText: "Modification en attente sur O2. Ce BT doit rester bloque avant publication.",
+      label: "Attente O2",
+    };
+  }
+
+  if (isBtO2Validated(bt)) {
+    return {
+      badgeClassName: "border-emerald-200 bg-emerald-50 text-emerald-700",
+      cardClassName: "border-emerald-200 bg-[linear-gradient(180deg,#f4fcf7_0%,#ecfaf1_100%)]",
+      helperText: "Modification O2 validee. Le BT peut poursuivre le flux de remplacement.",
+      label: "O2 valide",
+    };
+  }
+
+  return null;
+}
+
 export function BriefWorkspace({
   allowedModules = [],
   data,
   headerDateTimeLabel,
   isSuperAdmin = false,
   role,
+  technicians,
   userEmail,
   weatherGeneratedAtLabel,
   weatherZones = [],
@@ -230,7 +253,7 @@ export function BriefWorkspace({
 
   const technicianOptions = useMemo(
     () =>
-      [...new Set(bts.flatMap((bt) => bt.team.map((member) => member.name || member.nni)).filter(Boolean))].sort(),
+      [...new Set(bts.flatMap((bt) => getEffectiveTeam(bt).map((member) => member.name || member.nni)).filter(Boolean))].sort(),
     [bts],
   );
 
@@ -245,17 +268,36 @@ export function BriefWorkspace({
             bt.client,
             bt.localisation,
             bt.atNum,
-            ...bt.team.map((member) => `${member.nni} ${member.name}`),
+            ...getEffectiveTeam(bt).map((member) => `${member.nni} ${member.name}`),
           ].join(" "),
         ).includes(normalizeText(query));
 
       const technicianMatch =
         selectedTechnician === "all" ||
-        bt.team.some((member) => (member.name || member.nni) === selectedTechnician);
+        getEffectiveTeam(bt).some((member) => (member.name || member.nni) === selectedTechnician);
 
       return queryMatch && technicianMatch;
     });
   }, [bts, query, selectedTechnician]);
+
+  const replacementCandidates = useMemo(
+    () =>
+      bts
+        .filter(
+          (bt) =>
+            bt.sourceMode === "unitary_import" &&
+            !isBtSuperseded(bt) &&
+            !bt.replacementOfEntryId &&
+            Boolean(bt.entryId),
+        )
+        .map((bt) => ({
+          entryId: bt.entryId!,
+          id: bt.id,
+          objet: bt.objet,
+          pageStart: bt.pageStart,
+        })),
+    [bts],
+  );
 
   const groupedBts = useMemo(() => {
     const groups = new Map<
@@ -319,6 +361,7 @@ export function BriefWorkspace({
     viewerState?.entries.find((entry) => entry.pdfPage === viewerState.currentPage) ?? null;
   const isCompactView = viewMode === "compact";
   const isCategoryLayout = layoutMode === "category";
+  const isViewModeLocked = isCategoryLayout;
   const emptyStateSpanClassName =
     isCategoryLayout
       ? "col-span-1"
@@ -334,6 +377,26 @@ export function BriefWorkspace({
     }
 
     if (viewportWidth >= 900) {
+      return 2;
+    }
+
+    return 1;
+  }, [viewportWidth]);
+
+  const categoryGridColumns = useMemo(() => {
+    if (viewportWidth >= 1880) {
+      return 5;
+    }
+
+    if (viewportWidth >= 1200) {
+      return 4;
+    }
+
+    if (viewportWidth >= 980) {
+      return 3;
+    }
+
+    if (viewportWidth >= 640) {
       return 2;
     }
 
@@ -822,6 +885,12 @@ export function BriefWorkspace({
                     ))}
                   </select>
                   <div className="flex flex-wrap gap-2 min-[1440px]:justify-end">
+                    <button
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-blue-200 hover:text-blue-700"
+                      type="button"
+                    >
+                      Importer BT unitaire
+                    </button>
                     {[
                       { key: "large", label: "Grandes vignettes" },
                       { key: "compact", label: "Petites vignettes" },
@@ -830,10 +899,13 @@ export function BriefWorkspace({
                         key={option.key}
                         className={cx(
                           "rounded-full border px-3 py-1 text-xs font-semibold transition",
-                          viewMode === option.key
+                          isViewModeLocked
+                            ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 shadow-none"
+                            : viewMode === option.key
                             ? "border-blue-200 bg-blue-600 text-white shadow-[0_12px_24px_rgba(37,99,235,0.18)]"
                             : "border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-700",
                         )}
+                        disabled={isViewModeLocked}
                         onClick={() => handleViewModeChange(option.key as ViewMode)}
                         type="button"
                       >
@@ -872,23 +944,20 @@ export function BriefWorkspace({
                     groupedBts.map((group) => (
                     <article
                       key={group.key}
-                      className={cx(
-                        "rounded-[24px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-3 shadow-[0_18px_40px_rgba(148,163,184,0.12)] sm:p-4",
-                        isCategoryLayout && "px-4 py-4 sm:px-5 sm:py-5",
-                      )}
+                      className="rounded-[24px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] px-4 py-4 shadow-[0_18px_40px_rgba(148,163,184,0.12)] sm:px-5 sm:py-5"
                     >
                       <div className="flex w-full flex-wrap items-center justify-between gap-3 pb-3 text-left">
                         <div className="flex items-center gap-3">
                           {isCategoryLayout ? (
                             <span
-                              className="inline-flex h-11 w-11 items-center justify-center rounded-2xl text-lg text-white shadow-[0_10px_24px_rgba(15,23,42,0.12)]"
+                              className="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-base text-white shadow-[0_10px_24px_rgba(15,23,42,0.12)]"
                               style={{ backgroundColor: group.color ?? "#94a3b8" }}
                             >
                               {group.icon}
                             </span>
                           ) : null}
                           <div>
-                            <h3 className="text-[1.45rem] font-semibold tracking-tight text-slate-950">
+                            <h3 className="text-[1.25rem] font-semibold tracking-tight text-slate-950 sm:text-[1.35rem]">
                               {group.label}
                             </h3>
                             <p className="mt-1 text-sm text-slate-500">
@@ -924,20 +993,230 @@ export function BriefWorkspace({
                       </div>
 
                       <div
-                        className={cx(
-                          isCategoryLayout && collapsedGroups[group.key] ? "hidden" : "",
-                          "grid gap-3 sm:grid-cols-2 min-[1280px]:grid-cols-3 min-[1800px]:grid-cols-4",
-                        )}
+                        className={cx(isCategoryLayout && collapsedGroups[group.key] ? "hidden" : "", "grid gap-3")}
+                        style={{
+                          gridTemplateColumns: `repeat(${Math.min(group.entries.length, categoryGridColumns)}, minmax(0, 1fr))`,
+                        }}
                       >
                         {group.entries.map((bt) => {
                           const primaryBadge = detectPrimaryBadge(bt);
-                          const teamPreview = getTeamPreview(bt, isCategoryLayout ? 4 : 8);
+                          const teamPreview = getTeamPreview(bt, isCategoryLayout ? 2 : 8);
+                          const originalTeamMembers = getOriginalTeamMembers(bt);
+                          const showOriginalTeam = hasTeamOverride(bt) && originalTeamMembers.length > 0;
+                          const workflowMeta = getBriefWorkflowMeta(bt);
+
+                          if (isCategoryLayout) {
+                            return (
+                              <article
+                                key={`${bt.id}-${bt.pageStart}`}
+                                className={cx(
+                                  "overflow-hidden rounded-[18px] border bg-white shadow-[0_10px_24px_rgba(148,163,184,0.10)]",
+                                  workflowMeta?.cardClassName ?? "border-blue-100",
+                                )}
+                              >
+                                <div className="border-b border-slate-100 bg-[linear-gradient(180deg,#ffffff_0%,#fbfdff_100%)] px-2.5 py-2">
+                                  <div className="flex flex-wrap items-start justify-between gap-1.5">
+                                    <div className="min-w-0">
+                                      <div className="flex flex-wrap items-center gap-1.5">
+                                        <h4 className="text-base font-semibold tracking-tight text-slate-950">
+                                          {bt.id}
+                                        </h4>
+                                        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                                          P.{bt.pageStart}
+                                        </span>
+                                        {primaryBadge ? (
+                                          <span
+                                            className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-white shadow-[0_6px_16px_rgba(15,23,42,0.10)]"
+                                            style={{ backgroundColor: primaryBadge.color }}
+                                          >
+                                            {primaryBadge.icon} {primaryBadge.label}
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                      <p className="mt-1.5 line-clamp-2 text-[11px] leading-4 text-slate-600">
+                                        {bt.objet || "Objet non reconnu"}
+                                      </p>
+                                    </div>
+
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {workflowMeta ? (
+                                        <span
+                                          className={cx(
+                                            "rounded-full border px-2 py-0.5 text-[10px] font-semibold",
+                                            workflowMeta.badgeClassName,
+                                          )}
+                                        >
+                                          {workflowMeta.label}
+                                        </span>
+                                      ) : null}
+                                      {getDocCounts(bt).map(([type, count]) => {
+                                        const config =
+                                          DOC_TYPES_CONFIG[type as keyof typeof DOC_TYPES_CONFIG] ?? DOC_TYPES_CONFIG.DOC;
+
+                                        return (
+                                          <span
+                                            key={`${bt.id}-${type}`}
+                                            className="rounded-full border px-2 py-0.5 text-[10px] font-semibold"
+                                            style={{
+                                              color: config.color,
+                                              borderColor: `${config.color}33`,
+                                              backgroundColor: `${config.color}12`,
+                                            }}
+                                          >
+                                            {config.icon} {type} x{count}
+                                          </span>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="grid gap-1.5 px-2.5 py-2.5">
+                                  <div className="grid gap-1.5 sm:grid-cols-2">
+                                    {[
+                                      { label: "Date", value: bt.datePrevue || "-" },
+                                      { label: "Duree", value: formatDuree(bt.duree) || "-" },
+                                      { label: "Client", value: bt.client || "-" },
+                                      { label: "AT", value: bt.atNum || "-" },
+                                    ].map((item) => (
+                                      <div
+                                        key={`${bt.id}-${item.label}`}
+                                        className="rounded-[16px] border border-slate-200 bg-slate-50/80 px-2.5 py-1.5"
+                                      >
+                                        <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                          {item.label}
+                                        </p>
+                                        <p className="mt-0.5 line-clamp-1 text-[11px] font-medium text-slate-700">
+                                          {item.value}
+                                        </p>
+                                      </div>
+                                    ))}
+                                  </div>
+
+                                  <div className="rounded-[16px] border border-slate-200 bg-slate-50/80 px-2.5 py-2">
+                                    <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                      Localisation
+                                    </p>
+                                    <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-slate-700">
+                                      {bt.localisation || "Non reconnue"}
+                                    </p>
+                                  </div>
+
+                                  <div className="rounded-[16px] border border-slate-200 bg-slate-50/80 px-2.5 py-2">
+                                    <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                      Equipe
+                                    </p>
+                                    <div className="mt-1.5 flex flex-wrap gap-1">
+                                      {teamPreview.visible.length > 0 ? (
+                                        <>
+                                          {teamPreview.visible.map((member) => (
+                                            <span
+                                              key={`${bt.id}-${member.key}`}
+                                              className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-semibold text-slate-700 shadow-sm"
+                                            >
+                                              {member.label}
+                                            </span>
+                                          ))}
+                                          {teamPreview.hiddenCount > 0 ? (
+                                            <span className="rounded-full border border-dashed border-slate-300 bg-slate-50 px-2 py-0.5 text-[9px] font-semibold text-slate-500">
+                                              +{teamPreview.hiddenCount}
+                                            </span>
+                                          ) : null}
+                                        </>
+                                      ) : (
+                                        <span className="text-[11px] text-slate-500">Aucune equipe detectee</span>
+                                      )}
+                                    </div>
+                                    {showOriginalTeam ? (
+                                      <div className="mt-1.5 border-t border-dashed border-slate-200 pt-1.5">
+                                        <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                                          Origine
+                                        </p>
+                                        <div className="mt-1 flex flex-wrap gap-1">
+                                          {originalTeamMembers.map((member) => (
+                                            <span
+                                              key={`${bt.id}-original-${member.key}`}
+                                              className="rounded-full border border-dashed border-slate-300 bg-white px-2 py-0.5 text-[9px] font-semibold text-slate-500"
+                                            >
+                                              {member.label}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ) : null}
+                                  </div>
+
+                                  <div className="rounded-[16px] border border-slate-200 bg-white px-2.5 py-2">
+                                    <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                      Documents
+                                    </p>
+                                    <div className="mt-1.5 flex flex-wrap gap-1">
+                                      {bt.docs.map((doc) => {
+                                        const config =
+                                          DOC_TYPES_CONFIG[doc.type as keyof typeof DOC_TYPES_CONFIG] ?? DOC_TYPES_CONFIG.DOC;
+
+                                        return (
+                                          <button
+                                            key={`${bt.id}-${doc.page}-${doc.type}`}
+                                            className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold shadow-sm transition hover:-translate-y-0.5"
+                                            onClick={() => openViewer(bt, doc.page)}
+                                            style={{
+                                              color: config.color,
+                                              borderColor: `${config.color}55`,
+                                              backgroundColor: `${config.color}10`,
+                                            }}
+                                            type="button"
+                                          >
+                                            <span>{config.icon}</span>
+                                            <span>{doc.type}</span>
+                                            <span className="opacity-70">p.{doc.page}</span>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+
+                                  {(bt.analyseDesRisques || bt.observations) ? (
+                                    <div className="flex flex-wrap gap-1">
+                                      {bt.analyseDesRisques ? (
+                                        <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[9px] font-semibold text-amber-700">
+                                          Analyse disponible
+                                        </span>
+                                      ) : null}
+                                      {bt.observations ? (
+                                        <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[9px] font-semibold text-blue-700">
+                                          Observations disponibles
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
+
+                                  <div className="border-t border-slate-100 pt-1.5">
+                                    {workflowMeta ? (
+                                      <p className="mb-1.5 text-[9px] font-medium leading-4 text-slate-600">
+                                        {workflowMeta.helperText}
+                                      </p>
+                                    ) : null}
+                                    <BriefBtWorkflowActions
+                                      bt={bt}
+                                      dense
+                                      replacementCandidates={replacementCandidates.filter(
+                                        (candidate) => candidate.entryId !== bt.entryId,
+                                      )}
+                                      technicians={technicians}
+                                    />
+                                  </div>
+                                </div>
+                              </article>
+                            );
+                          }
 
                           return (
                             <article
                               key={`${bt.id}-${bt.pageStart}`}
                               className={cx(
-                                "overflow-hidden rounded-[22px] border border-blue-100 bg-white shadow-[0_16px_36px_rgba(148,163,184,0.12)]",
+                                "overflow-hidden rounded-[22px] border bg-white shadow-[0_16px_36px_rgba(148,163,184,0.12)]",
+                                workflowMeta?.cardClassName ?? "border-blue-100",
                                 isCategoryLayout && "rounded-[20px] shadow-[0_10px_24px_rgba(148,163,184,0.10)]",
                               )}
                             >
@@ -985,6 +1264,16 @@ export function BriefWorkspace({
                                   </div>
 
                                   <div className="flex flex-wrap gap-2">
+                                    {workflowMeta ? (
+                                      <span
+                                        className={cx(
+                                          "rounded-full border px-3 py-1 text-xs font-semibold",
+                                          workflowMeta.badgeClassName,
+                                        )}
+                                      >
+                                        {workflowMeta.label}
+                                      </span>
+                                    ) : null}
                                     {getDocCounts(bt).map(([type, count]) => {
                                       const config =
                                         DOC_TYPES_CONFIG[type as keyof typeof DOC_TYPES_CONFIG] ?? DOC_TYPES_CONFIG.DOC;
@@ -1074,6 +1363,23 @@ export function BriefWorkspace({
                                           <span className="text-sm text-slate-500">Aucune équipe détectée</span>
                                         )}
                                       </div>
+                                      {showOriginalTeam ? (
+                                        <>
+                                          <p className="mt-4 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                                            Affectation d&apos;origine
+                                          </p>
+                                          <div className="mt-2 flex flex-wrap gap-2">
+                                            {originalTeamMembers.map((member) => (
+                                              <span
+                                                key={`${bt.id}-original-${member.key}`}
+                                                className="rounded-full border border-dashed border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-500"
+                                              >
+                                                {member.label}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        </>
+                                      ) : null}
                                     </div>
 
                                     <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-3">
@@ -1147,6 +1453,21 @@ export function BriefWorkspace({
                                     ) : null}
                                   </div>
                                 ) : null}
+
+                                <div className="border-t border-slate-100 pt-3">
+                                  {workflowMeta ? (
+                                    <p className="mb-3 text-[11px] font-medium text-slate-600">
+                                      {workflowMeta.helperText}
+                                    </p>
+                                  ) : null}
+                                  <BriefBtWorkflowActions
+                                    bt={bt}
+                                    replacementCandidates={replacementCandidates.filter(
+                                      (candidate) => candidate.entryId !== bt.entryId,
+                                    )}
+                                    technicians={technicians}
+                                  />
+                                </div>
                               </div>
                             </article>
                           );
@@ -1208,31 +1529,43 @@ export function BriefWorkspace({
                             >
                               {group.entries.map((bt) => {
                                 const primaryBadge = detectPrimaryBadge(bt);
-                                const teamPreview = getTeamPreview(bt, 8);
+                                const teamPreview = getTeamPreview(bt, isCompactView ? 2 : 8);
+                                const originalTeamMembers = getOriginalTeamMembers(bt);
+                                const showOriginalTeam = hasTeamOverride(bt) && originalTeamMembers.length > 0;
+                                const workflowMeta = getBriefWorkflowMeta(bt);
 
                                 return (
                                   <article
                                     key={`${bt.id}-${bt.pageStart}`}
-                                    className="overflow-hidden rounded-[22px] border border-blue-100 bg-white shadow-[0_16px_36px_rgba(148,163,184,0.12)]"
+                                    className={cx(
+                                      "overflow-hidden rounded-[22px] border bg-white shadow-[0_16px_36px_rgba(148,163,184,0.12)]",
+                                      workflowMeta?.cardClassName ?? "border-blue-100",
+                                    )}
                                   >
-                                    <div className={cx("border-b border-slate-100 bg-[linear-gradient(180deg,#ffffff_0%,#fbfdff_100%)] px-4 sm:px-5", isCompactView ? "py-3" : "py-4")}>
+                                    <div className={cx("border-b border-slate-100 bg-[linear-gradient(180deg,#ffffff_0%,#fbfdff_100%)] px-4 sm:px-5", isCompactView ? "py-2.5" : "py-4")}>
                                       <div className="flex flex-wrap items-start justify-between gap-3">
                                         <div>
                                           <div className="flex flex-wrap items-center gap-2">
                                             <h4
                                               className={cx(
                                                 "font-semibold tracking-tight text-slate-950",
-                                                isCompactView ? "text-[1.25rem] sm:text-[1.45rem]" : "text-[1.45rem] sm:text-2xl",
+                                                isCompactView ? "text-[1.05rem] sm:text-[1.15rem]" : "text-[1.45rem] sm:text-2xl",
                                               )}
                                             >
                                               {bt.id}
                                             </h4>
-                                            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-                                              Page {bt.pageStart}
+                                            <span className={cx(
+                                              "rounded-full bg-blue-50 font-semibold text-blue-700",
+                                              isCompactView ? "px-2 py-0.5 text-[10px]" : "px-3 py-1 text-xs",
+                                            )}>
+                                              {isCompactView ? `P.${bt.pageStart}` : `Page ${bt.pageStart}`}
                                             </span>
                                             {primaryBadge ? (
                                               <span
-                                                className="rounded-full px-3 py-1 text-xs font-semibold text-white shadow-[0_8px_20px_rgba(15,23,42,0.12)]"
+                                                className={cx(
+                                                  "rounded-full font-semibold text-white shadow-[0_8px_20px_rgba(15,23,42,0.12)]",
+                                                  isCompactView ? "px-2 py-0.5 text-[10px]" : "px-3 py-1 text-xs",
+                                                )}
                                                 style={{ backgroundColor: primaryBadge.color }}
                                               >
                                                 {primaryBadge.icon} {primaryBadge.label}
@@ -1242,7 +1575,7 @@ export function BriefWorkspace({
                                           <p
                                             className={cx(
                                               "mt-3 text-slate-600",
-                                              isCompactView ? "text-[13px] leading-5" : "text-sm leading-6",
+                                              isCompactView ? "mt-2 line-clamp-2 text-[11px] leading-4" : "text-sm leading-6",
                                             )}
                                           >
                                             {bt.objet || "Objet non reconnu"}
@@ -1250,6 +1583,17 @@ export function BriefWorkspace({
                                         </div>
 
                                         <div className="flex flex-wrap gap-2">
+                                          {workflowMeta ? (
+                                            <span
+                                              className={cx(
+                                                "rounded-full border font-semibold",
+                                                isCompactView ? "px-2 py-0.5 text-[10px]" : "px-3 py-1 text-xs",
+                                                workflowMeta.badgeClassName,
+                                              )}
+                                            >
+                                              {workflowMeta.label}
+                                            </span>
+                                          ) : null}
                                           {getDocCounts(bt).map(([type, count]) => {
                                             const config =
                                               DOC_TYPES_CONFIG[type as keyof typeof DOC_TYPES_CONFIG] ?? DOC_TYPES_CONFIG.DOC;
@@ -1257,7 +1601,10 @@ export function BriefWorkspace({
                                             return (
                                               <span
                                                 key={`${bt.id}-${type}`}
-                                                className="rounded-full border px-3 py-1 text-xs font-semibold"
+                                                className={cx(
+                                                  "rounded-full border font-semibold",
+                                                  isCompactView ? "px-2 py-0.5 text-[10px]" : "px-3 py-1 text-xs",
+                                                )}
                                                 style={{
                                                   color: config.color,
                                                   borderColor: `${config.color}33`,
@@ -1272,61 +1619,108 @@ export function BriefWorkspace({
                                       </div>
                                     </div>
 
-                                    <div className={cx("grid gap-4 px-4 sm:px-5", isCompactView ? "py-3 sm:py-4" : "py-4 sm:py-5")}>
+                                    <div className={cx("grid px-4 sm:px-5", isCompactView ? "gap-3 py-3 sm:px-4 sm:py-3.5" : "gap-4 py-4 sm:py-5")}>
                                       <div
                                         className={cx(
                                           "grid gap-4",
-                                          isCompactView ? "grid-cols-1" : "min-[720px]:grid-cols-[minmax(0,1.15fr)_minmax(220px,0.85fr)]",
+                                          isCompactView ? "grid-cols-1 gap-3" : "min-[720px]:grid-cols-[minmax(0,1.15fr)_minmax(220px,0.85fr)]",
                                         )}
                                       >
-                                        <div className="space-y-3 text-sm text-slate-700">
-                                          <div className={cx("grid gap-2", isCompactView ? "grid-cols-2" : "sm:grid-cols-2")}>
+                                        <div className={cx("text-slate-700", isCompactView ? "space-y-2 text-[11px]" : "space-y-3 text-sm")}>
+                                          <div className={cx("grid gap-2", isCompactView ? "grid-cols-2 text-[11px]" : "sm:grid-cols-2")}>
                                             <div>📅 {bt.datePrevue || "—"}</div>
                                             <div>⏱️ {formatDuree(bt.duree) || "—"}</div>
                                             <div>👤 {bt.client || "—"}</div>
                                             <div>🧾 {bt.atNum || "—"}</div>
                                           </div>
-                                          <div className="rounded-[20px] border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm leading-6 text-slate-700">
-                                            <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                                          <div className={cx(
+                                            "rounded-[20px] border border-slate-200 bg-slate-50/80 text-slate-700",
+                                            isCompactView ? "px-3 py-2 text-[11px] leading-4" : "px-4 py-3 text-sm leading-6",
+                                          )}>
+                                            <span className={cx(
+                                              "font-semibold uppercase text-slate-500",
+                                              isCompactView ? "text-[10px] tracking-[0.18em]" : "text-xs tracking-[0.22em]",
+                                            )}>
                                               Localisation
                                             </span>
-                                            <p className="mt-2">{bt.localisation || "Non reconnue"}</p>
+                                            <p className={cx(isCompactView ? "mt-1 line-clamp-2" : "mt-2")}>{bt.localisation || "Non reconnue"}</p>
                                           </div>
                                         </div>
 
-                                        <div className={cx("space-y-3", isCompactView && "grid gap-3 sm:grid-cols-2")}>
-                                          <div className="rounded-[20px] border border-slate-200 bg-slate-50/80 px-4 py-3">
-                                            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                                        <div className={cx("space-y-3", isCompactView && "grid gap-2.5 sm:grid-cols-2")}>
+                                          <div className={cx(
+                                            "rounded-[20px] border border-slate-200 bg-slate-50/80",
+                                            isCompactView ? "px-3 py-2.5" : "px-4 py-3",
+                                          )}>
+                                            <p className={cx(
+                                              "font-semibold uppercase text-slate-500",
+                                              isCompactView ? "text-[10px] tracking-[0.18em]" : "text-xs tracking-[0.22em]",
+                                            )}>
                                               Equipe
                                             </p>
-                                            <div className="mt-3 flex flex-wrap gap-2">
+                                            <div className={cx("flex flex-wrap", isCompactView ? "mt-2 gap-1.5" : "mt-3 gap-2")}>
                                               {teamPreview.visible.length > 0 ? (
                                                 <>
                                                   {teamPreview.visible.map((member) => (
                                                     <span
                                                       key={`${bt.id}-${member.key}`}
-                                                      className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm"
+                                                      className={cx(
+                                                        "rounded-full border border-slate-200 bg-white font-semibold text-slate-700 shadow-sm",
+                                                        isCompactView ? "px-2.5 py-1 text-[10px]" : "px-3 py-1 text-xs",
+                                                      )}
                                                     >
                                                       {member.label}
                                                     </span>
                                                   ))}
                                                   {teamPreview.hiddenCount > 0 ? (
-                                                    <span className="rounded-full border border-dashed border-slate-300 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-500">
+                                                    <span className={cx(
+                                                      "rounded-full border border-dashed border-slate-300 bg-slate-50 font-semibold text-slate-500",
+                                                      isCompactView ? "px-2.5 py-1 text-[10px]" : "px-3 py-1 text-xs",
+                                                    )}>
                                                       +{teamPreview.hiddenCount}
                                                     </span>
                                                   ) : null}
                                                 </>
                                               ) : (
-                                                <span className="text-sm text-slate-500">Aucune équipe détectée</span>
+                                                <span className={cx(isCompactView ? "text-[11px]" : "text-sm", "text-slate-500")}>Aucune équipe détectée</span>
                                               )}
                                             </div>
+                                            {showOriginalTeam ? (
+                                              <>
+                                                <p className={cx(
+                                                  "font-semibold uppercase text-slate-500",
+                                                  isCompactView ? "mt-3 text-[10px] tracking-[0.18em]" : "mt-4 text-xs tracking-[0.22em]",
+                                                )}>
+                                                  Affectation d&apos;origine
+                                                </p>
+                                                <div className={cx("flex flex-wrap", isCompactView ? "mt-1.5 gap-1.5" : "mt-2 gap-2")}>
+                                                  {originalTeamMembers.map((member) => (
+                                                    <span
+                                                      key={`${bt.id}-original-${member.key}`}
+                                                      className={cx(
+                                                        "rounded-full border border-dashed border-slate-300 bg-white font-semibold text-slate-500",
+                                                        isCompactView ? "px-2.5 py-1 text-[10px]" : "px-3 py-1 text-xs",
+                                                      )}
+                                                    >
+                                                      {member.label}
+                                                    </span>
+                                                  ))}
+                                                </div>
+                                              </>
+                                            ) : null}
                                           </div>
 
-                                          <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-3">
-                                            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                                          <div className={cx(
+                                            "rounded-[20px] border border-slate-200 bg-white",
+                                            isCompactView ? "px-3 py-2.5" : "px-4 py-3",
+                                          )}>
+                                            <p className={cx(
+                                              "font-semibold uppercase text-slate-500",
+                                              isCompactView ? "text-[10px] tracking-[0.18em]" : "text-xs tracking-[0.22em]",
+                                            )}>
                                               Documents d&apos;origine
                                             </p>
-                                            <div className="mt-3 flex flex-wrap gap-2">
+                                            <div className={cx("flex flex-wrap", isCompactView ? "mt-2 gap-1.5" : "mt-3 gap-2")}>
                                               {bt.docs.map((doc) => {
                                                 const config =
                                                   DOC_TYPES_CONFIG[doc.type as keyof typeof DOC_TYPES_CONFIG] ?? DOC_TYPES_CONFIG.DOC;
@@ -1334,7 +1728,10 @@ export function BriefWorkspace({
                                                 return (
                                                   <button
                                                     key={`${bt.id}-${doc.page}-${doc.type}`}
-                                                    className="inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-semibold shadow-sm transition hover:-translate-y-0.5"
+                                                    className={cx(
+                                                      "inline-flex items-center rounded-2xl border font-semibold shadow-sm transition hover:-translate-y-0.5",
+                                                      isCompactView ? "gap-1 px-2.5 py-1 text-[10px]" : "gap-2 px-3 py-2 text-xs",
+                                                    )}
                                                     onClick={() => openViewer(bt, doc.page)}
                                                     style={{
                                                       color: config.color,
@@ -1355,30 +1752,57 @@ export function BriefWorkspace({
                                       </div>
 
                                       {(bt.analyseDesRisques || bt.observations) ? (
-                                        <div className="grid gap-3 min-[980px]:grid-cols-2">
+                                        <div className={cx("grid", isCompactView ? "gap-2 sm:grid-cols-2" : "gap-3 min-[980px]:grid-cols-2")}>
                                           {bt.analyseDesRisques ? (
-                                            <div className="rounded-[20px] border border-amber-300 bg-[linear-gradient(180deg,#fff8db_0%,#fff3c4_100%)] px-4 py-3 text-sm leading-6 text-amber-950">
-                                              <span className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-700">
+                                            <div className={cx(
+                                              "rounded-[20px] border border-amber-300 bg-[linear-gradient(180deg,#fff8db_0%,#fff3c4_100%)] text-amber-950",
+                                              isCompactView ? "px-3 py-2 text-[11px] leading-4" : "px-4 py-3 text-sm leading-6",
+                                            )}>
+                                              <span className={cx(
+                                                "font-semibold uppercase text-amber-700",
+                                                isCompactView ? "text-[10px] tracking-[0.18em]" : "text-xs tracking-[0.22em]",
+                                              )}>
                                                 Analyse des risques
                                               </span>
-                                              <p className={cx("mt-2", isCompactView ? "line-clamp-4 text-[13px] leading-5" : "line-clamp-6")}>
+                                              <p className={cx("mt-2", isCompactView ? "line-clamp-3 text-[11px] leading-4" : "line-clamp-6")}>
                                                 {bt.analyseDesRisques}
                                               </p>
                                             </div>
                                           ) : null}
 
                                           {bt.observations ? (
-                                            <div className="rounded-[20px] border border-blue-300 bg-[linear-gradient(180deg,#eff6ff_0%,#dbeafe_100%)] px-4 py-3 text-sm leading-6 text-blue-950">
-                                              <span className="text-xs font-semibold uppercase tracking-[0.22em] text-blue-700">
+                                            <div className={cx(
+                                              "rounded-[20px] border border-blue-300 bg-[linear-gradient(180deg,#eff6ff_0%,#dbeafe_100%)] text-blue-950",
+                                              isCompactView ? "px-3 py-2 text-[11px] leading-4" : "px-4 py-3 text-sm leading-6",
+                                            )}>
+                                              <span className={cx(
+                                                "font-semibold uppercase text-blue-700",
+                                                isCompactView ? "text-[10px] tracking-[0.18em]" : "text-xs tracking-[0.22em]",
+                                              )}>
                                                 Observations
                                               </span>
-                                              <p className={cx("mt-2", isCompactView ? "line-clamp-4 text-[13px] leading-5" : "line-clamp-6")}>
+                                              <p className={cx("mt-2", isCompactView ? "line-clamp-3 text-[11px] leading-4" : "line-clamp-6")}>
                                                 {bt.observations}
                                               </p>
                                             </div>
                                           ) : null}
                                         </div>
                                       ) : null}
+
+                                      <div className={cx("border-t border-slate-100", isCompactView ? "pt-2.5" : "pt-3")}>
+                                        {workflowMeta ? (
+                                          <p className={cx("font-medium text-slate-600", isCompactView ? "mb-2 text-[10px] leading-4" : "mb-3 text-[11px]")}>
+                                            {workflowMeta.helperText}
+                                          </p>
+                                        ) : null}
+                                        <BriefBtWorkflowActions
+                                          bt={bt}
+                                          replacementCandidates={replacementCandidates.filter(
+                                            (candidate) => candidate.entryId !== bt.entryId,
+                                          )}
+                                          technicians={technicians}
+                                        />
+                                      </div>
                                     </div>
                                   </article>
                                 );

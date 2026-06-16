@@ -47,6 +47,14 @@ export type SupportJourneeActionResult = {
 
 type ActivityStatusInput = "Present" | "Absent" | "Greve";
 
+function normalizeRequiredTechnicians(value: number | null | undefined) {
+  if (value == null || Number.isNaN(value)) {
+    return null;
+  }
+
+  return Math.max(1, Math.floor(value));
+}
+
 function normalizeActivityStatus(status: ActivityStatusInput) {
   if (status === "Present") {
     return "present";
@@ -606,6 +614,8 @@ export async function createActivityDefinition(input: {
   label: string;
   color: string;
   status: ActivityStatusInput;
+  requiredTechnicians: number | null;
+  showInDailyCheck: boolean;
 }): Promise<SupportJourneeActionResult> {
   try {
     const context = await requireAdminSupabase();
@@ -673,6 +683,10 @@ export async function createActivityDefinition(input: {
       status: normalizeActivityStatus(input.status),
       display_order: nextDisplayOrder,
       active: true,
+      required_technicians: input.showInDailyCheck
+        ? normalizeRequiredTechnicians(input.requiredTechnicians)
+        : null,
+      show_in_daily_check: input.showInDailyCheck,
     });
 
     if (error) {
@@ -698,6 +712,8 @@ export async function updateActivityDefinition(input: {
   label: string;
   color: string;
   status: ActivityStatusInput;
+  requiredTechnicians: number | null;
+  showInDailyCheck: boolean;
 }): Promise<SupportJourneeActionResult> {
   try {
     const context = await requireAdminSupabase();
@@ -744,6 +760,10 @@ export async function updateActivityDefinition(input: {
         label,
         color: input.color,
         status: normalizeActivityStatus(input.status),
+        required_technicians: input.showInDailyCheck
+          ? normalizeRequiredTechnicians(input.requiredTechnicians)
+          : null,
+        show_in_daily_check: input.showInDailyCheck,
       })
       .eq("id", input.id);
 

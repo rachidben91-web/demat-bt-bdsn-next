@@ -279,3 +279,45 @@ Donne-moi :
 4. les policies RLS
 5. les seeds
 6. un court resume des choix de modelisation
+
+## Evolutions a prevoir
+
+### Prefill du support journee depuis l'import PDF Brief
+
+Objectif fonctionnel :
+
+- lorsqu'un PDF de BT est importe pour une journee cible (exemple : import aujourd'hui du PDF des BT prevus pour demain),
+- reutiliser les informations extraites dans le module `Brief`,
+- pre-remplir automatiquement le `Support Journee` de la date concernee,
+- laisser ensuite un controle visuel et des ajustements manuels,
+- puis permettre la validation metier et l'impression du support.
+
+Flux cible souhaite :
+
+1. import du PDF BT pour une date donnee
+2. extraction et classement des BT dans `Brief`
+3. proposition de pre-affectation des techniciens / activites dans `Support Journee`
+4. verification visuelle par le referent
+5. corrections manuelles si besoin
+6. validation de la journee
+7. impression du support final
+
+Contraintes / points de conception :
+
+- ne pas ecraser silencieusement une journee deja preparee
+- distinguer les lignes pre-remplies automatiquement des lignes validees manuellement
+- garder la possibilite de relancer un pre-remplissage avec confirmation utilisateur
+- s'appuyer sur les activites parametrables du support journee, et non sur des libelles hardcodes
+- conserver une trace de l'origine des pre-affectations (import PDF / BT / categorie / equipe)
+
+Pistes techniques :
+
+- ajouter une etape de mapping entre les BT importes et les activites `Support Journee`
+- utiliser la date du PDF / du lot importe comme date cible du support
+- stocker un statut de pre-remplissage ou une provenance sur les lignes `support_day_entries`
+- proposer une action explicite du type `Pre-remplir le support journee depuis le Brief`
+
+Statut :
+
+- evolution demandee
+- a cadrer puis implementer dans une prochaine iteration

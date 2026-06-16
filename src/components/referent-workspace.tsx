@@ -3,11 +3,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { AppShellHeader } from "@/components/app-shell-header";
 import { MobileDispatchPublishCard } from "@/components/mobile-dispatch-publish-card";
+import { ReferentPrepareBtButton } from "@/components/referent-prepare-bt-button";
 import type { BtImportDayOverview } from "@/lib/bt-import-days";
+import { getOriginalTeamMembers, hasTeamOverride, isBtPendingO2, isBtSuperseded } from "@/lib/bt-workflow";
 import type { MobileDispatchStatusSnapshot } from "@/lib/mobile-dispatch";
 import { getModuleTheme } from "@/lib/module-theme";
 import { detectPrimaryBadge } from "@/lib/pdf-import/badges";
 import type { ExtractedBt } from "@/lib/pdf-import/types";
+import {
+  canPrepareBtForMobile,
+  getBtPreparationIssues,
+  getDispatchStatus,
+  getUniqueTeamMembers,
+  type DispatchStatus,
+} from "@/lib/referent-dispatch";
 import type { OfficeModuleKey } from "@/lib/office-access";
 
 type ReferentWorkspaceProps = {
@@ -22,8 +31,6 @@ type ReferentWorkspaceProps = {
   weatherGeneratedAtLabel?: string | null;
   weatherZones?: import("@/lib/weather").HeaderWeatherZone[];
 };
-
-type DispatchStatus = "unassigned" | "assigned" | "review" | "ready";
 
 function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
@@ -45,46 +52,6 @@ function normalizeText(value: string) {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
-function getUniqueTeamMembers(bt: ExtractedBt) {
-  const members = new Map<string, string>();
-
-  for (const member of bt.team) {
-    const label = (member.name || member.nni || "").trim();
-
-    if (!label) {
-      continue;
-    }
-
-    const key = (member.nni || label).trim().toUpperCase();
-
-    if (!members.has(key)) {
-      members.set(key, label);
-    }
-  }
-
-  return [...members.entries()].map(([key, label]) => ({ key, label }));
-}
-
-function getDispatchStatus(bt: ExtractedBt): DispatchStatus {
-  const members = getUniqueTeamMembers(bt);
-
-  if (members.length === 0) {
-    return "unassigned";
-  }
-
-  if (members.length > 1) {
-    return "review";
-  }
-
-  const hasOperationalContext = Boolean(bt.observations || bt.analyseDesRisques);
-
-  if (hasOperationalContext) {
-    return "ready";
-  }
-
-  return "assigned";
-}
-
 function getDispatchStatusMeta(status: DispatchStatus) {
   switch (status) {
     case "unassigned":
@@ -95,9 +62,15 @@ function getDispatchStatusMeta(status: DispatchStatus) {
       };
     case "review":
       return {
-        label: "A revoir",
+        label: "A completer",
         badgeClassName: "border-violet-200 bg-violet-50 text-violet-800",
         panelClassName: "border-violet-200 bg-[linear-gradient(180deg,#faf5ff_0%,#f3e8ff_100%)]",
+      };
+    case "blocked":
+      return {
+        label: "Bloque O2",
+        badgeClassName: "border-rose-200 bg-rose-50 text-rose-800",
+        panelClassName: "border-rose-200 bg-[linear-gradient(180deg,#fff5f5_0%,#ffe9e9_100%)]",
       };
     case "ready":
       return {
@@ -126,6 +99,9 @@ function getOperationalCounts(bts: ExtractedBt[]) {
         case "review":
           counts.review += 1;
           break;
+        case "blocked":
+          counts.blocked += 1;
+          break;
         case "ready":
           counts.ready += 1;
           break;
@@ -136,7 +112,7 @@ function getOperationalCounts(bts: ExtractedBt[]) {
 
       return counts;
     },
-    { total: 0, unassigned: 0, assigned: 0, review: 0, ready: 0 },
+    { total: 0, unassigned: 0, assigned: 0, review: 0, blocked: 0, ready: 0 },
   );
 }
 
@@ -146,6 +122,15 @@ function getUniqueTechnicians(bts: ExtractedBt[]) {
 
 function getCompactDuration(value: string) {
   return value.replace(/\s+/g, " ").trim() || "Duree non detectee";
+}
+
+function getPublishedTimestamp(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : null;
 }
 
 export function ReferentWorkspace({
@@ -162,6 +147,7 @@ export function ReferentWorkspace({
 }: ReferentWorkspaceProps) {
   const referentTheme = getModuleTheme("referent");
   const { bts, currentDay, days } = data;
+  const activeBts = useMemo(() => bts.filter((bt) => !isBtSuperseded(bt)), [bts]);
   const [query, setQuery] = useState("");
   const [selectedTechnician, setSelectedTechnician] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState<DispatchStatus | "all">("all");
@@ -182,7 +168,7 @@ export function ReferentWorkspace({
     };
   }, []);
 
-  const technicianOptions = useMemo(() => getUniqueTechnicians(bts), [bts]);
+  const technicianOptions = useMemo(() => getUniqueTechnicians(activeBts), [activeBts]);
   const technicianDirectory = useMemo(() => {
     return new Map(
       technicians.flatMap((technician) => {
@@ -197,7 +183,7 @@ export function ReferentWorkspace({
   }, [technicians]);
 
   const filteredBts = useMemo(() => {
-    return bts.filter((bt) => {
+    return activeBts.filter((bt) => {
       const status = getDispatchStatus(bt);
       const teamMembers = getUniqueTeamMembers(bt);
       const queryMatch =
@@ -220,7 +206,7 @@ export function ReferentWorkspace({
 
       return queryMatch && technicianMatch && statusMatch;
     });
-  }, [bts, query, selectedStatus, selectedTechnician]);
+  }, [activeBts, query, selectedStatus, selectedTechnician]);
 
   const groupedBts = useMemo(() => {
     const groups = new Map<string, { label: string; secondary: string; entries: ExtractedBt[] }>();
@@ -295,7 +281,12 @@ export function ReferentWorkspace({
   }
 
   return (
-    <main className={cx("min-h-screen px-3 py-3 text-slate-900 sm:px-5 sm:py-4 lg:px-6 xl:px-8", referentTheme.pageBackgroundClassName)}>
+    <main
+      className={cx(
+        "min-h-screen px-3 py-3 text-slate-900 sm:px-5 sm:py-4 lg:px-6 xl:px-8",
+        referentTheme.pageBackgroundClassName,
+      )}
+    >
       <div className="mx-auto max-w-[2360px]">
         <AppShellHeader
           activeModule="referent"
@@ -303,7 +294,7 @@ export function ReferentWorkspace({
           headerDateTimeLabel={headerDateTimeLabel}
           isSuperAdmin={isSuperAdmin}
           role={role}
-          title="Référent"
+          title="Referent"
           userEmail={userEmail}
           weatherGeneratedAtLabel={weatherGeneratedAtLabel}
           weatherZones={weatherZones}
@@ -314,23 +305,25 @@ export function ReferentWorkspace({
             <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-blue-600">
-                  Journée chargée
+                  Journee chargee
                 </p>
                 <h2 className="mt-2 text-[1.85rem] font-semibold tracking-tight text-slate-950">
-                  {currentDay ? formatDayLabel(currentDay.dayDate) : "Aucune journée"}
+                  {currentDay ? formatDayLabel(currentDay.dayDate) : "Aucune journee"}
                 </h2>
                 <p className="mt-2 text-sm text-slate-500">
-                  Vue référent centrée sur l&apos;affectation, la réaffectation et la préparation de l&apos;envoi terrain.
+                  Vue referent centree sur l&apos;affectation, la preparation BT par BT et la publication
+                  groupee vers mobile.
                 </p>
               </div>
 
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-6">
                 {[
                   { label: "BT", value: counts.total, tone: "text-slate-950" },
-                  { label: "À affecter", value: counts.unassigned, tone: "text-amber-700" },
-                  { label: "À revoir", value: counts.review, tone: "text-violet-700" },
-                  { label: "Prêts", value: counts.ready, tone: "text-emerald-700" },
-                  { label: "Site", value: currentDay?.siteCode ?? "—", tone: "text-slate-950" },
+                  { label: "A affecter", value: counts.unassigned, tone: "text-amber-700" },
+                  { label: "A completer", value: counts.review, tone: "text-violet-700" },
+                  { label: "Bloques", value: counts.blocked, tone: "text-rose-700" },
+                  { label: "Prets", value: counts.ready, tone: "text-emerald-700" },
+                  { label: "Site", value: currentDay?.siteCode ?? "-", tone: "text-slate-950" },
                 ].map((metric) => (
                   <article
                     key={metric.label}
@@ -361,7 +354,7 @@ export function ReferentWorkspace({
               <input
                 className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none placeholder:text-slate-400 focus:border-blue-400 focus:bg-white"
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Rechercher un BT, client, adresse ou équipe..."
+                placeholder="Rechercher un BT, client, adresse ou equipe..."
                 value={query}
               />
 
@@ -386,23 +379,15 @@ export function ReferentWorkspace({
                 <option value="all">Tous les etats</option>
                 <option value="unassigned">A affecter</option>
                 <option value="assigned">Affectes</option>
-                <option value="review">A revoir</option>
+                <option value="review">A completer</option>
+                <option value="blocked">Bloques O2</option>
                 <option value="ready">Prets mobile</option>
               </select>
 
               <div className="flex flex-wrap justify-end gap-2">
-                <button
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
-                  type="button"
-                >
-                  Importer BT unitaire
-                </button>
-                <button
-                  className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(15,23,42,0.18)]"
-                  type="button"
-                >
-                  Preparer l&apos;envoi mobile
-                </button>
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
+                  {counts.ready}/{counts.total} BT prets mobile
+                </div>
               </div>
             </div>
           </section>
@@ -435,6 +420,26 @@ export function ReferentWorkspace({
                   const groupDispatchStatuses = groupTechnicians
                     .map((technician) => mobileDispatchStatuses[technician.id])
                     .filter((item): item is MobileDispatchStatusSnapshot => Boolean(item));
+                  const readyBtCount = group.entries.filter((entry) => getDispatchStatus(entry) === "ready").length;
+                  const blockedBtCount = group.entries.filter((entry) => isBtPendingO2(entry)).length;
+                  const latestPublicationTimestamp = Math.max(
+                    ...groupDispatchStatuses
+                      .map((status) => getPublishedTimestamp(status.publishedAt))
+                      .filter((value): value is number => value !== null),
+                    0,
+                  );
+                  const publicationNeedsRefresh =
+                    latestPublicationTimestamp > 0 &&
+                    group.entries.some((entry) => {
+                      const readyAt = getPublishedTimestamp(entry.mobileReadyAt);
+                      return readyAt !== null && readyAt > latestPublicationTimestamp;
+                    });
+                  const publishBlockedReason =
+                    blockedBtCount > 0
+                      ? `${blockedBtCount} BT en attente de validation O2 bloquent cette publication mobile.`
+                      : readyBtCount === group.entries.length
+                        ? null
+                        : `Preparation requise sur ${group.entries.length - readyBtCount} BT avant publication mobile.`;
                   const groupBtPayload = group.entries.map((entry) => ({
                     btId: entry.id,
                     atNum: entry.atNum,
@@ -457,171 +462,201 @@ export function ReferentWorkspace({
                         gridColumn: `span ${groupSpan} / span ${groupSpan}`,
                       }}
                     >
-                  <div className="flex flex-wrap items-center justify-between gap-3 pb-3">
-                    <div>
-                      <h3 className="text-[1.2rem] font-semibold tracking-tight text-slate-950 sm:text-[1.3rem]">
-                        {groupMembers.length > 0 ? visibleGroupMembers.join(" / ") : group.label}
-                      </h3>
-                      {groupMembers.length > 2 ? (
-                        <button
-                          className="mt-1 inline-flex items-center gap-2 text-[11px] font-semibold text-slate-500 transition hover:text-slate-800"
-                          onClick={() => toggleGroupNames(group.key)}
-                          type="button"
-                        >
-                          <span>{isGroupExpanded ? "Replier les noms" : `Afficher ${hiddenGroupMembersCount} nom(s)`}</span>
-                          <span className="text-xs">{isGroupExpanded ? "↑" : "↓"}</span>
-                        </button>
-                      ) : null}
-                      <p className="mt-1 text-xs text-slate-500 sm:text-sm">{group.secondary}</p>
-                    </div>
-                    <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
-                      {group.entries.length} BT
-                    </span>
-                  </div>
+                      <div className="flex flex-wrap items-center justify-between gap-3 pb-3">
+                        <div>
+                          <h3 className="text-[1.2rem] font-semibold tracking-tight text-slate-950 sm:text-[1.3rem]">
+                            {groupMembers.length > 0 ? visibleGroupMembers.join(" / ") : group.label}
+                          </h3>
+                          {groupMembers.length > 2 ? (
+                            <button
+                              className="mt-1 inline-flex items-center gap-2 text-[11px] font-semibold text-slate-500 transition hover:text-slate-800"
+                              onClick={() => toggleGroupNames(group.key)}
+                              type="button"
+                            >
+                              <span>
+                                {isGroupExpanded ? "Replier les noms" : `Afficher ${hiddenGroupMembersCount} nom(s)`}
+                              </span>
+                              <span className="text-xs">{isGroupExpanded ? "^" : "v"}</span>
+                            </button>
+                          ) : null}
+                          <p className="mt-1 text-xs text-slate-500 sm:text-sm">{group.secondary}</p>
+                        </div>
+                        <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+                          {group.entries.length} BT
+                        </span>
+                      </div>
 
-                  <div
-                    className="grid gap-3"
-                    style={{
-                      gridTemplateColumns: `repeat(${Math.min(group.entries.length, desktopGridColumns)}, minmax(0, 1fr))`,
-                    }}
-                  >
-                    {group.entries.map((bt) => {
-                      const primaryBadge = detectPrimaryBadge(bt);
-                      const teamMembers = getUniqueTeamMembers(bt);
-                      const status = getDispatchStatus(bt);
-                      const statusMeta = getDispatchStatusMeta(status);
-                      const btKey = `${bt.id}-${bt.pageStart}`;
-                      const isAssignmentExpanded = expandedAssignments[btKey] ?? false;
-                      const visibleTeamMembers = isAssignmentExpanded ? teamMembers : teamMembers.slice(0, 3);
-                      const hiddenTeamMembersCount = Math.max(0, teamMembers.length - visibleTeamMembers.length);
+                      <div
+                        className="grid gap-3"
+                        style={{
+                          gridTemplateColumns: `repeat(${Math.min(group.entries.length, desktopGridColumns)}, minmax(0, 1fr))`,
+                        }}
+                      >
+                        {group.entries.map((bt) => {
+                          const primaryBadge = detectPrimaryBadge(bt);
+                          const teamMembers = getUniqueTeamMembers(bt);
+                          const status = getDispatchStatus(bt);
+                          const statusMeta = getDispatchStatusMeta(status);
+                          const preparationIssues = getBtPreparationIssues(bt);
+                          const canPrepare = canPrepareBtForMobile(bt);
+                          const btKey = `${bt.id}-${bt.pageStart}`;
+                          const isAssignmentExpanded = expandedAssignments[btKey] ?? false;
+                          const originalTeamMembers = getOriginalTeamMembers(bt);
+                          const showOriginalTeam = hasTeamOverride(bt) && originalTeamMembers.length > 0;
+                          const visibleTeamMembers = isAssignmentExpanded ? teamMembers : teamMembers.slice(0, 3);
+                          const hiddenTeamMembersCount = Math.max(0, teamMembers.length - visibleTeamMembers.length);
 
-                      return (
-                        <article
-                          key={btKey}
-                          className="overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-[0_12px_28px_rgba(148,163,184,0.1)]"
-                        >
-                          <div className="border-b border-slate-100 bg-[linear-gradient(180deg,#ffffff_0%,#fbfdff_100%)] px-3.5 py-3">
-                            <div className="flex flex-wrap items-start justify-between gap-3">
-                              <div>
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <h4 className="text-[1.05rem] font-semibold tracking-tight text-slate-950 sm:text-[1.15rem]">
-                                    {bt.id}
-                                  </h4>
-                                  <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">
-                                    Page {bt.pageStart}
+                          return (
+                            <article
+                              key={btKey}
+                              className="overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-[0_12px_28px_rgba(148,163,184,0.1)]"
+                            >
+                              <div className="border-b border-slate-100 bg-[linear-gradient(180deg,#ffffff_0%,#fbfdff_100%)] px-3.5 py-3">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                  <div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <h4 className="text-[1.05rem] font-semibold tracking-tight text-slate-950 sm:text-[1.15rem]">
+                                        {bt.id}
+                                      </h4>
+                                      <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">
+                                        Page {bt.pageStart}
+                                      </span>
+                                      {primaryBadge ? (
+                                        <span
+                                          className="rounded-full px-2.5 py-1 text-[11px] font-semibold text-white"
+                                          style={{ backgroundColor: primaryBadge.color }}
+                                        >
+                                          {primaryBadge.icon} {primaryBadge.label}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                    <p className="mt-2 line-clamp-2 text-[12px] leading-5 text-slate-600">
+                                      {bt.objet || "Objet non reconnu"}
+                                    </p>
+                                  </div>
+                                  <span
+                                    className={cx(
+                                      "rounded-full border px-2.5 py-1 text-[11px] font-semibold",
+                                      statusMeta.badgeClassName,
+                                    )}
+                                  >
+                                    {statusMeta.label}
                                   </span>
-                                  {primaryBadge ? (
-                                    <span
-                                      className="rounded-full px-2.5 py-1 text-[11px] font-semibold text-white"
-                                      style={{ backgroundColor: primaryBadge.color }}
-                                    >
-                                      {primaryBadge.icon} {primaryBadge.label}
-                                    </span>
+                                </div>
+                              </div>
+
+                              <div className="space-y-3 px-3.5 py-3">
+                                <div className="grid gap-x-3 gap-y-2 text-[11px] text-slate-700 sm:grid-cols-2">
+                                  <div>Date : {bt.datePrevue || "Date non detectee"}</div>
+                                  <div>Duree : {getCompactDuration(bt.duree)}</div>
+                                  <div>Client : {bt.client || "Client non detecte"}</div>
+                                  <div>AT : {bt.atNum || "AT non detecte"}</div>
+                                </div>
+
+                                <div className="rounded-[16px] border border-slate-200 bg-slate-50/80 px-3 py-2.5">
+                                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                                    Localisation
+                                  </p>
+                                  <p className="mt-1.5 line-clamp-2 text-[11px] leading-5 text-slate-700">
+                                    {bt.localisation || "Non reconnue"}
+                                  </p>
+                                </div>
+
+                                <div className={cx("rounded-[16px] border px-3 py-2.5", statusMeta.panelClassName)}>
+                                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                                    Affectation actuelle
+                                  </p>
+                                  <div className="mt-2 flex flex-wrap gap-1.5">
+                                    {teamMembers.length > 0 ? (
+                                      <>
+                                        {visibleTeamMembers.map((member) => (
+                                          <span
+                                            key={`${bt.id}-${member.key}`}
+                                            className="rounded-full border border-white/80 bg-white/88 px-2.5 py-1 text-[11px] font-semibold text-slate-800 shadow-sm"
+                                          >
+                                            {member.label}
+                                          </span>
+                                        ))}
+                                        {hiddenTeamMembersCount > 0 ? (
+                                          <button
+                                            className="rounded-full border border-dashed border-slate-300 bg-white/88 px-2.5 py-1 text-[11px] font-semibold text-slate-600 shadow-sm transition hover:border-slate-400 hover:text-slate-900"
+                                            onClick={() => toggleAssignmentNames(btKey)}
+                                            type="button"
+                                          >
+                                            {isAssignmentExpanded ? "Replier" : `+${hiddenTeamMembersCount} noms`}
+                                          </button>
+                                        ) : null}
+                                      </>
+                                    ) : (
+                                      <span className="text-[11px] text-slate-600">Aucune affectation definie</span>
+                                    )}
+                                  </div>
+                                  {showOriginalTeam ? (
+                                    <>
+                                      <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                                        Affectation d&apos;origine
+                                      </p>
+                                      <div className="mt-2 flex flex-wrap gap-1.5">
+                                        {originalTeamMembers.map((member) => (
+                                          <span
+                                            key={`${bt.id}-original-${member.key}`}
+                                            className="rounded-full border border-dashed border-slate-300 bg-white/88 px-2.5 py-1 text-[11px] font-semibold text-slate-600 shadow-sm"
+                                          >
+                                            {member.label}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </>
                                   ) : null}
                                 </div>
-                                <p className="mt-2 line-clamp-2 text-[12px] leading-5 text-slate-600">
-                                  {bt.objet || "Objet non reconnu"}
-                                </p>
+
+                                <div className="border-t border-slate-100 pt-2.5">
+                                  <div className="flex flex-wrap gap-1.5">
+                                    <ReferentPrepareBtButton
+                                      btId={bt.id}
+                                      btImportDayId={currentDay?.id ?? null}
+                                      canPrepare={canPrepare}
+                                      isPrepared={status === "ready"}
+                                      pageStart={bt.pageStart}
+                                    />
+                                  </div>
+
+                                  {status === "ready" ? (
+                                    <p className="mt-2 text-[11px] font-medium text-emerald-700">
+                                      BT valide pour la prochaine publication mobile.
+                                    </p>
+                                  ) : null}
+
+                                  {preparationIssues.length > 0 ? (
+                                    <p className="mt-2 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-[11px] text-violet-800">
+                                      {preparationIssues.join(" ")}
+                                    </p>
+                                  ) : null}
+                                </div>
                               </div>
-                              <span
-                                className={cx(
-                                  "rounded-full border px-2.5 py-1 text-[11px] font-semibold",
-                                  statusMeta.badgeClassName,
-                                )}
-                              >
-                                {statusMeta.label}
-                              </span>
-                            </div>
-                          </div>
+                            </article>
+                          );
+                        })}
+                      </div>
 
-                          <div className="space-y-3 px-3.5 py-3">
-                            <div className="grid gap-x-3 gap-y-2 text-[11px] text-slate-700 sm:grid-cols-2">
-                              <div>📅 {bt.datePrevue || "Date non detectee"}</div>
-                              <div>⏱️ {getCompactDuration(bt.duree)}</div>
-                              <div>👤 {bt.client || "Client non detecte"}</div>
-                              <div>🧾 {bt.atNum || "AT non detecte"}</div>
-                            </div>
-
-                            <div className="rounded-[16px] border border-slate-200 bg-slate-50/80 px-3 py-2.5">
-                              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                                Localisation
-                              </p>
-                              <p className="mt-1.5 line-clamp-2 text-[11px] leading-5 text-slate-700">
-                                {bt.localisation || "Non reconnue"}
-                              </p>
-                            </div>
-
-                            <div className={cx("rounded-[16px] border px-3 py-2.5", statusMeta.panelClassName)}>
-                              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                                Affectation actuelle
-                              </p>
-                              <div className="mt-2 flex flex-wrap gap-1.5">
-                                {teamMembers.length > 0 ? (
-                                  <>
-                                    {visibleTeamMembers.map((member) => (
-                                    <span
-                                      key={`${bt.id}-${member.key}`}
-                                      className="rounded-full border border-white/80 bg-white/88 px-2.5 py-1 text-[11px] font-semibold text-slate-800 shadow-sm"
-                                    >
-                                      {member.label}
-                                    </span>
-                                    ))}
-                                    {hiddenTeamMembersCount > 0 ? (
-                                      <button
-                                        className="rounded-full border border-dashed border-slate-300 bg-white/88 px-2.5 py-1 text-[11px] font-semibold text-slate-600 shadow-sm transition hover:border-slate-400 hover:text-slate-900"
-                                        onClick={() => toggleAssignmentNames(btKey)}
-                                        type="button"
-                                      >
-                                        {isAssignmentExpanded ? "Replier" : `+${hiddenTeamMembersCount} noms`}
-                                      </button>
-                                    ) : null}
-                                  </>
-                                ) : (
-                                  <span className="text-[11px] text-slate-600">Aucune affectation definie</span>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="flex flex-wrap gap-1.5 border-t border-slate-100 pt-2.5">
-                              <button
-                                className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700"
-                                type="button"
-                              >
-                                Reaffecter
-                              </button>
-                              <button
-                                className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700"
-                                type="button"
-                              >
-                                Remplacer BT
-                              </button>
-                              <button
-                                className="rounded-xl bg-slate-950 px-3 py-1.5 text-[11px] font-semibold text-white"
-                                type="button"
-                              >
-                                Preparer l&apos;envoi
-                              </button>
-                            </div>
-                          </div>
-                        </article>
-                      );
-                    })}
-                  </div>
-                  {groupTechnicians.length > 0 ? (
-                    <div className="mt-3">
-                      <MobileDispatchPublishCard
-                        btImportDayId={currentDay?.id ?? null}
-                        btPayload={groupBtPayload}
-                        dispatchStatuses={groupDispatchStatuses}
-                        missionDate={currentDay?.dayDate ?? new Date().toISOString().slice(0, 10)}
-                        siteCode={currentDay?.siteCode ?? null}
-                        technicians={groupTechnicians.map((technician) => ({
-                          id: technician.id,
-                          label: technician.label,
-                        }))}
-                      />
-                    </div>
-                  ) : null}
+                      {groupTechnicians.length > 0 ? (
+                        <div className="mt-3">
+                          <MobileDispatchPublishCard
+                            btImportDayId={currentDay?.id ?? null}
+                            btPayload={groupBtPayload}
+                            dispatchStatuses={groupDispatchStatuses}
+                            missionDate={currentDay?.dayDate ?? new Date().toISOString().slice(0, 10)}
+                            publicationNeedsRefresh={publicationNeedsRefresh}
+                            publishBlockedReason={publishBlockedReason}
+                            readyBtCount={readyBtCount}
+                            siteCode={currentDay?.siteCode ?? null}
+                            technicians={groupTechnicians.map((technician) => ({
+                              id: technician.id,
+                              label: technician.label,
+                            }))}
+                          />
+                        </div>
+                      ) : null}
                     </article>
                   );
                 })}

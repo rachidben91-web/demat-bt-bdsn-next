@@ -14,6 +14,7 @@ type LoginFormProps = {
 
 const initialState: LoginFormState = {
   error: null,
+  debugError: null,
 };
 
 export function LoginForm({
@@ -55,9 +56,14 @@ export function LoginForm({
       </div>
 
       {state.error ? (
-        <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          {state.error}
-        </p>
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <p>{state.error}</p>
+          {state.debugError ? (
+            <p className="mt-2 break-words font-mono text-xs text-rose-900/85">
+              Détail dev : {state.debugError}
+            </p>
+          ) : null}
+        </div>
       ) : null}
 
       <button

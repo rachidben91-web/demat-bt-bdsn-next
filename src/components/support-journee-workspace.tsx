@@ -151,6 +151,8 @@ type ActivityDraft = {
   label: string;
   color: string;
   status: ActivityStatusValue;
+  requiredTechnicians: string;
+  showInDailyCheck: boolean;
 };
 
 type SaveTrigger = "auto" | "manual" | "release" | "navigation";
@@ -262,6 +264,26 @@ function parseDisplayDateToIso(dateString: string) {
   return `${year}-${month}-${day}`;
 }
 
+function parseRequiredTechnicians(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(trimmed, 10);
+
+  if (Number.isNaN(parsed) || parsed < 1) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function formatTechnicianLabel(count: number) {
+  return `${count} TG`;
+}
+
 export function SupportJourneeWorkspace({
   allowedModules = [],
   data,
@@ -318,6 +340,8 @@ export function SupportJourneeWorkspace({
     label: "",
     color: "#3b82f6",
     status: "Present",
+    requiredTechnicians: "",
+    showInDailyCheck: false,
   });
   const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
   const [editingActivity, setEditingActivity] = useState<ActivityDraft | null>(null);
@@ -392,6 +416,31 @@ export function SupportJourneeWorkspace({
   );
   const activityByLabel = new Map(
     sortedActivityDefinitions.map((activity) => [activity.label, activity]),
+  );
+  const dailyCheckActivities = useMemo(
+    () =>
+      sortedActivityDefinitions
+        .filter((activity) => activity.showInDailyCheck)
+        .map((activity) => {
+          const currentCount = assignments.filter(
+            (assignment) => assignment.activity === activity.label,
+          ).length;
+          const requiredCount = activity.requiredTechnicians;
+          const extraCount =
+            requiredCount != null && currentCount > requiredCount
+              ? currentCount - requiredCount
+              : 0;
+          const isSatisfied = requiredCount == null ? currentCount > 0 : currentCount >= requiredCount;
+
+          return {
+            activity,
+            currentCount,
+            extraCount,
+            isSatisfied,
+            requiredCount,
+          };
+        }),
+    [assignments, sortedActivityDefinitions],
   );
   const printGeneratedAt = new Intl.DateTimeFormat("fr-FR", {
     dateStyle: "short",
@@ -889,7 +938,12 @@ export function SupportJourneeWorkspace({
 
   function handleCreateActivity() {
     startTransition(async () => {
-      const result = await createActivityDefinition(newActivity);
+      const result = await createActivityDefinition({
+        ...newActivity,
+        requiredTechnicians: newActivity.showInDailyCheck
+          ? parseRequiredTechnicians(newActivity.requiredTechnicians)
+          : null,
+      });
       setStatusMessage(result.message);
 
       if (result.ok) {
@@ -897,6 +951,8 @@ export function SupportJourneeWorkspace({
           label: "",
           color: "#3b82f6",
           status: "Present",
+          requiredTechnicians: "",
+          showInDailyCheck: false,
         });
       }
     });
@@ -908,6 +964,9 @@ export function SupportJourneeWorkspace({
       label: activity.label,
       color: activity.color,
       status: activity.status,
+      requiredTechnicians:
+        activity.requiredTechnicians != null ? String(activity.requiredTechnicians) : "",
+      showInDailyCheck: activity.showInDailyCheck,
     });
   }
 
@@ -925,6 +984,9 @@ export function SupportJourneeWorkspace({
       const result = await updateActivityDefinition({
         id: activityId,
         ...editingActivity,
+        requiredTechnicians: editingActivity.showInDailyCheck
+          ? parseRequiredTechnicians(editingActivity.requiredTechnicians)
+          : null,
       });
 
       setStatusMessage(result.message);
@@ -1561,6 +1623,38 @@ export function SupportJourneeWorkspace({
                 >
                   {saveStateLabel}
                 </span>
+                {dailyCheckActivities.length > 0 ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {dailyCheckActivities.map(({ activity, currentCount, extraCount, isSatisfied, requiredCount }) => (
+                      <article
+                        key={`daily-check-${activity.id}`}
+                        className={cx(
+                          "min-w-[126px] rounded-2xl border px-3 py-2 shadow-sm",
+                          isSatisfied
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                            : "border-rose-200 bg-rose-50 text-rose-900",
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="h-3 w-3 rounded-full border border-white/70 shadow-sm"
+                            style={{ backgroundColor: activity.color }}
+                          />
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.12em]">
+                            {activity.label}
+                          </p>
+                        </div>
+                        <p className={cx("mt-1 text-sm font-semibold", isSatisfied ? "text-emerald-700" : "text-rose-700")}>
+                          {requiredCount == null
+                            ? formatTechnicianLabel(currentCount)
+                            : isSatisfied
+                              ? `${formatTechnicianLabel(requiredCount)}${extraCount > 0 ? ` +${extraCount}` : ""}`
+                              : `${currentCount} / ${requiredCount} TG`}
+                        </p>
+                      </article>
+                    ))}
+                  </div>
+                ) : null}
                 <div className="ml-auto">
                   <button
                     className={cx(
@@ -1916,11 +2010,44 @@ export function SupportJourneeWorkspace({
                         }))
                       }
                       value={newActivity.status}
-                    >
+                      >
                       <option value="Present">Present</option>
                       <option value="Absent">Absent</option>
                       <option value="Greve">Greve</option>
                     </select>
+                    <label className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700">
+                      <input
+                        checked={newActivity.showInDailyCheck}
+                        className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                        onChange={(event) =>
+                          setNewActivity((current) => ({
+                            ...current,
+                            showInDailyCheck: event.target.checked,
+                            requiredTechnicians:
+                              event.target.checked && !current.requiredTechnicians
+                                ? "1"
+                                : current.requiredTechnicians,
+                          }))
+                        }
+                        type="checkbox"
+                      />
+                      Afficher dans le controle
+                    </label>
+                    <input
+                      className="w-[140px] rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none placeholder:text-slate-400 focus:border-blue-400 disabled:bg-slate-100 disabled:text-slate-400"
+                      disabled={!newActivity.showInDailyCheck}
+                      inputMode="numeric"
+                      min="1"
+                      onChange={(event) =>
+                        setNewActivity((current) => ({
+                          ...current,
+                          requiredTechnicians: event.target.value,
+                        }))
+                      }
+                      placeholder="Nb. TG"
+                      type="number"
+                      value={newActivity.requiredTechnicians}
+                    />
                     <button
                       className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(37,99,235,0.24)]"
                       disabled={isBusy}
@@ -2006,6 +2133,49 @@ export function SupportJourneeWorkspace({
                               <option value="Greve">Greve</option>
                             </select>
                           </div>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <label className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700">
+                              <input
+                                checked={editingActivity.showInDailyCheck}
+                                className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                                onChange={(event) =>
+                                  setEditingActivity((current) =>
+                                    current
+                                      ? {
+                                          ...current,
+                                          showInDailyCheck: event.target.checked,
+                                          requiredTechnicians:
+                                            event.target.checked && !current.requiredTechnicians
+                                              ? "1"
+                                              : current.requiredTechnicians,
+                                        }
+                                      : current,
+                                  )
+                                }
+                                type="checkbox"
+                              />
+                              Afficher dans le controle
+                            </label>
+                            <input
+                              className="w-[140px] rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none placeholder:text-slate-400 focus:border-blue-400 disabled:bg-slate-100 disabled:text-slate-400"
+                              disabled={!editingActivity.showInDailyCheck}
+                              inputMode="numeric"
+                              min="1"
+                              onChange={(event) =>
+                                setEditingActivity((current) =>
+                                  current
+                                    ? {
+                                        ...current,
+                                        requiredTechnicians: event.target.value,
+                                      }
+                                    : current,
+                                )
+                              }
+                              placeholder="Nb. TG"
+                              type="number"
+                              value={editingActivity.requiredTechnicians}
+                            />
+                          </div>
                         </div>
 
                         <div className="mt-4 flex gap-2">
@@ -2044,6 +2214,14 @@ export function SupportJourneeWorkspace({
                             >
                               {activity.status}
                             </span>
+                            {activity.showInDailyCheck ? (
+                              <span className="mt-2 inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                                Controle jour
+                                {activity.requiredTechnicians != null
+                                  ? ` • min. ${activity.requiredTechnicians}`
+                                  : ""}
+                              </span>
+                            ) : null}
                           </div>
                         </div>
 
