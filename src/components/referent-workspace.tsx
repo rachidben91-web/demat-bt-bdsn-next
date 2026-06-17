@@ -441,6 +441,7 @@ export function ReferentWorkspace({
                         ? null
                         : `Preparation requise sur ${group.entries.length - readyBtCount} BT avant publication mobile.`;
                   const groupBtPayload = group.entries.map((entry) => ({
+                    btEntryId: entry.entryId ?? null,
                     btId: entry.id,
                     atNum: entry.atNum,
                     client: entry.client,

@@ -103,7 +103,12 @@ async function handleLogin(
 
   const auth = await getCurrentAuthContext();
 
-  if (auth.officeAccount?.canAccessOfficeApp && !auth.officeAccount.passwordChanged) {
+  if (
+    auth.officeAccount &&
+    auth.officeAccount.accountStatus === "active" &&
+    !auth.officeAccount.passwordChanged &&
+    (auth.officeAccount.canAccessOfficeApp || auth.officeAccount.canAccessTerrainApp)
+  ) {
     redirect("/change-password");
   }
 

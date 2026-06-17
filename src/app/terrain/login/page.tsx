@@ -10,6 +10,15 @@ export default async function TerrainLoginPage() {
   if (
     auth.user &&
     auth.officeAccount?.accountStatus === "active" &&
+    !auth.officeAccount.passwordChanged &&
+    auth.officeAccount.canAccessTerrainApp
+  ) {
+    redirect("/change-password");
+  }
+
+  if (
+    auth.user &&
+    auth.officeAccount?.accountStatus === "active" &&
     auth.officeAccount.canAccessTerrainApp &&
     auth.officeAccount.technicianId &&
     auth.officeAccount.terrainRole

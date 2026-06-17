@@ -21,6 +21,10 @@ type TerrainBtEntryRow = {
   id: string;
 };
 
+function isUuidLike(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 function parseBtIds(value: unknown) {
   if (!Array.isArray(value)) {
     return [];
@@ -79,18 +83,22 @@ export async function getTerrainBtPdfSignedUrl(
       return { error: "Source PDF introuvable pour cette mission." };
     }
 
-    const { data: btEntryById, error: btEntryByIdError } = await adminSupabase
-      .from("bt_import_entries")
-      .select("id, bt_id, derived_pdf_storage_path")
-      .eq("import_day_id", dispatch.bt_import_day_id)
-      .eq("id", normalizedBtEntryId)
-      .maybeSingle<TerrainBtEntryRow>();
+    let btEntry: TerrainBtEntryRow | null = null;
 
-    if (btEntryByIdError) {
-      return { error: "PDF non disponible pour ce BT." };
+    if (isUuidLike(normalizedBtEntryId)) {
+      const { data: btEntryById, error: btEntryByIdError } = await adminSupabase
+        .from("bt_import_entries")
+        .select("id, bt_id, derived_pdf_storage_path")
+        .eq("import_day_id", dispatch.bt_import_day_id)
+        .eq("id", normalizedBtEntryId)
+        .maybeSingle<TerrainBtEntryRow>();
+
+      if (btEntryByIdError) {
+        return { error: "PDF non disponible pour ce BT." };
+      }
+
+      btEntry = btEntryById ?? null;
     }
-
-    let btEntry = btEntryById ?? null;
 
     if (!btEntry) {
       const { data: btEntryByBtId, error: btEntryByBtIdError } = await adminSupabase

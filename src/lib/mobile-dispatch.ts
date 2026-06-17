@@ -7,6 +7,7 @@ import {
 export type DepartureInstruction = "agency" | "direct" | "confirm";
 
 export type MobileDispatchBtPayload = {
+  btEntryId?: string | null;
   btId: string;
   atNum: string;
   client: string;
@@ -75,16 +76,24 @@ function parseBtPayload(value: unknown): MobileDispatchBtPayload[] {
     return [];
   }
 
-  return value
-    .map((item) => {
+  return value.reduce<MobileDispatchBtPayload[]>((accumulator, item) => {
       if (!item || typeof item !== "object") {
-        return null;
+        return accumulator;
       }
 
       const candidate = item as Record<string, unknown>;
+      const btId = typeof candidate.btId === "string" ? candidate.btId : "";
 
-      return {
-        btId: typeof candidate.btId === "string" ? candidate.btId : "",
+      if (!btId) {
+        return accumulator;
+      }
+
+      accumulator.push({
+        btEntryId:
+          typeof candidate.btEntryId === "string" && candidate.btEntryId.trim().length > 0
+            ? candidate.btEntryId
+            : null,
+        btId,
         atNum: typeof candidate.atNum === "string" ? candidate.atNum : "",
         client: typeof candidate.client === "string" ? candidate.client : "",
         designation: typeof candidate.designation === "string" ? candidate.designation : "",
@@ -111,9 +120,10 @@ function parseBtPayload(value: unknown): MobileDispatchBtPayload[] {
         analyseDesRisques:
           typeof candidate.analyseDesRisques === "string" ? candidate.analyseDesRisques : "",
         observations: typeof candidate.observations === "string" ? candidate.observations : "",
-      };
-    })
-    .filter((item): item is MobileDispatchBtPayload => Boolean(item?.btId));
+      });
+
+      return accumulator;
+    }, []);
 }
 
 function mapMobileDispatchItem(row: MobileDispatchItemRow): MobileDispatchItem {

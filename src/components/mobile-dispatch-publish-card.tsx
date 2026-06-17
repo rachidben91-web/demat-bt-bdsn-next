@@ -10,6 +10,7 @@ import type { DepartureInstruction, MobileDispatchStatusSnapshot } from "@/lib/m
 type MobileDispatchPublishCardProps = {
   btImportDayId: string | null;
   btPayload: Array<{
+    btEntryId?: string | null;
     btId: string;
     atNum: string;
     client: string;
@@ -67,15 +68,22 @@ export function MobileDispatchPublishCard({
   }
 
   const publishedCount = dispatchStatuses.length;
-  const acknowledgedCount = dispatchStatuses.filter((status) => status.acknowledgedAt).length;
+  const acknowledgedStatuses = dispatchStatuses
+    .filter((status) => status.acknowledgedAt)
+    .sort(
+      (left, right) =>
+        new Date(right.acknowledgedAt ?? 0).getTime() - new Date(left.acknowledgedAt ?? 0).getTime(),
+    );
+  const acknowledgedCount = acknowledgedStatuses.length;
   const hasPublishedVersion = Boolean(latestPublishedStatus);
   const departureInstructionIsLocked = hasPublishedVersion && !publicationNeedsRefresh;
   const publishBlocked = Boolean(publishBlockedReason);
   const latestPublication = latestPublishedStatus?.publishedAt ?? null;
-  const latestAcknowledgement = dispatchStatuses
-    .map((status) => status.acknowledgedAt)
-    .filter((value): value is string => Boolean(value))
-    .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] ?? null;
+  const latestAcknowledgedStatus = acknowledgedStatuses[0] ?? null;
+  const latestAcknowledgement = latestAcknowledgedStatus?.acknowledgedAt ?? null;
+  const acknowledgedTechnicianNames = acknowledgedStatuses
+    .map((status) => status.technicianName.trim())
+    .filter(Boolean);
   const selectedDepartureInstruction =
     departureInstructionIsLocked && latestPublishedStatus
       ? latestPublishedStatus.departureInstruction
@@ -128,10 +136,17 @@ export function MobileDispatchPublishCard({
               {latestPublication ? `Derniere publication le ${formatTimestamp(latestPublication)}.` : null}
               {latestPublication && latestAcknowledgement ? " " : null}
               {latestAcknowledgement
-                ? `Dernier accuse recu le ${formatTimestamp(latestAcknowledgement)}.`
+                ? `Dernier accuse recu le ${formatTimestamp(latestAcknowledgement)}${
+                    latestAcknowledgedStatus?.technicianName
+                      ? ` par ${latestAcknowledgedStatus.technicianName}`
+                      : ""
+                  }.`
                 : acknowledgedCount > 0
                   ? `${acknowledgedCount} technicien(s) ont confirme la reception.`
                   : "Aucun accuse de reception pour le moment."}
+              {acknowledgedTechnicianNames.length > 0
+                ? ` Confirme(s) : ${acknowledgedTechnicianNames.join(", ")}.`
+                : null}
             </p>
           </div>
         ) : null}

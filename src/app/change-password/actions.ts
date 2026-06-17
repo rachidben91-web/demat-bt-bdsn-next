@@ -5,7 +5,7 @@ import {
   createServerSupabaseAdminClient,
   createServerSupabaseClient,
 } from "@/lib/supabase/server";
-import { getCurrentAuthContext } from "@/lib/auth";
+import { getCurrentAuthContext, getDefaultAppPath } from "@/lib/auth";
 
 export type ChangePasswordFormState = {
   error: string | null;
@@ -90,5 +90,5 @@ export async function changePasswordAction(
     }
   }
 
-  redirect("/");
+  redirect(getDefaultAppPath(auth) ?? "/");
 }

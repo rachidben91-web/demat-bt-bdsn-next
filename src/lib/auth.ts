@@ -99,6 +99,15 @@ function mapOfficeAccount(row: OfficeAccountQueryRow): CurrentOfficeAccount {
   };
 }
 
+function mustChangePassword(account: CurrentOfficeAccount | null | undefined) {
+  return Boolean(
+    account &&
+      account.accountStatus === "active" &&
+      !account.passwordChanged &&
+      (account.canAccessOfficeApp || account.canAccessTerrainApp),
+  );
+}
+
 export async function getCurrentAuthContext() {
   if (!isSupabaseConfigured()) {
     return {
@@ -171,7 +180,7 @@ export async function requireAnyOfficeAccess() {
     return auth;
   }
 
-  if (auth.officeAccount?.canAccessOfficeApp && !auth.officeAccount.passwordChanged) {
+  if (mustChangePassword(auth.officeAccount)) {
     redirect("/change-password");
   }
 
@@ -195,6 +204,10 @@ export async function requireTerrainAccess() {
 
   if (!auth.configured) {
     return auth;
+  }
+
+  if (mustChangePassword(auth.officeAccount)) {
+    redirect("/change-password");
   }
 
   if (
@@ -225,7 +238,7 @@ export async function requireOfficeModule(moduleKey: OfficeModuleKey) {
     return auth;
   }
 
-  if (auth.officeAccount?.canAccessOfficeApp && !auth.officeAccount.passwordChanged) {
+  if (mustChangePassword(auth.officeAccount)) {
     redirect("/change-password");
   }
 
@@ -256,7 +269,7 @@ export async function requireOfficeWriteModule(moduleKey: OfficeModuleKey) {
     return auth;
   }
 
-  if (auth.officeAccount?.canAccessOfficeApp && !auth.officeAccount.passwordChanged) {
+  if (mustChangePassword(auth.officeAccount)) {
     redirect("/change-password");
   }
 

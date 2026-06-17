@@ -11,6 +11,7 @@ export type MobileDispatchActionState = {
 };
 
 type PublishPayloadBt = {
+  btEntryId?: string | null;
   btId: string;
   atNum: string;
   client: string;
