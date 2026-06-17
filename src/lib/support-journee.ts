@@ -29,6 +29,14 @@ export type TechnicianOption = {
   ptd: boolean;
 };
 
+export type BriefAssignmentOption = {
+  id: string;
+  label: string;
+  nni: string;
+  sourceType: "technician" | "manager" | "referent";
+  sourceLabel: string;
+};
+
 export type ActivityOption = {
   id: string;
   label: string;
@@ -122,6 +130,17 @@ type TechnicianRow = {
   ptd: boolean;
   sort_order: number;
   managers: ManagerRow | ManagerRow[] | null;
+};
+
+type BriefManagerRow = {
+  id: string;
+  name: string;
+};
+
+type BriefReferentRow = {
+  id: string;
+  full_name: string;
+  office_role: string | null;
 };
 
 type ActivityRow = {
@@ -252,6 +271,16 @@ function getManagerName(managers: ManagerRow | ManagerRow[] | null) {
   return managers?.name ?? "Non assigne";
 }
 
+function normalizeOptionKey(name: string, nni: string) {
+  const normalizedName = name
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  return nni.trim().toUpperCase() || normalizedName;
+}
+
 function formatDateLabel(dayDate: string) {
   return new Intl.DateTimeFormat("fr-FR", {
     weekday: "long",
@@ -359,6 +388,113 @@ export async function getSupportTechnicians(): Promise<TechnicianOption[]> {
     }));
   } catch {
     return fallbackTechnicians;
+  }
+}
+
+export async function getBriefAssignmentOptions(): Promise<BriefAssignmentOption[]> {
+  const technicians = await getSupportTechnicians();
+
+  if (!isSupabaseConfigured()) {
+    return technicians.map((technician) => ({
+      id: technician.id,
+      label: technician.name,
+      nni: technician.nni,
+      sourceType: "technician" as const,
+      sourceLabel: technician.role || "Technicien",
+    }));
+  }
+
+  try {
+    const supabase = await createServerSupabaseClient();
+    const [{ data: managersData, error: managersError }, { data: referentsData, error: referentsError }] =
+      await Promise.all([
+        supabase.from("managers").select("id, name").order("name", { ascending: true }),
+        supabase
+          .from("office_accounts")
+          .select("id, full_name, office_role")
+          .eq("account_status", "active")
+          .eq("can_access_office_app", true)
+          .in("office_role", ["manager", "team_lead"])
+          .order("full_name", { ascending: true }),
+      ]);
+
+    if (managersError || referentsError) {
+      return technicians.map((technician) => ({
+        id: technician.id,
+        label: technician.name,
+        nni: technician.nni,
+        sourceType: "technician" as const,
+        sourceLabel: technician.role || "Technicien",
+      }));
+    }
+
+    const options = new Map<string, BriefAssignmentOption>();
+
+    for (const technician of technicians) {
+      options.set(normalizeOptionKey(technician.name, technician.nni), {
+        id: technician.id,
+        label: technician.name,
+        nni: technician.nni,
+        sourceType: "technician",
+        sourceLabel: technician.role || "Technicien",
+      });
+    }
+
+    for (const referent of (referentsData ?? []) as BriefReferentRow[]) {
+      const fullName = referent.full_name.trim();
+
+      if (!fullName) {
+        continue;
+      }
+
+      const key = normalizeOptionKey(fullName, "");
+
+      if (options.has(key)) {
+        continue;
+      }
+
+      options.set(key, {
+        id: `referent:${referent.id}`,
+        label: fullName,
+        nni: "",
+        sourceType: "referent",
+        sourceLabel: referent.office_role === "manager" ? "Manager" : "Referent",
+      });
+    }
+
+    for (const manager of (managersData ?? []) as BriefManagerRow[]) {
+      const name = manager.name.trim();
+
+      if (!name) {
+        continue;
+      }
+
+      const key = normalizeOptionKey(name, "");
+
+      if (options.has(key)) {
+        continue;
+      }
+
+      options.set(key, {
+        id: `manager:${manager.id}`,
+        label: name,
+        nni: "",
+        sourceType: "manager",
+        sourceLabel: "Manager",
+      });
+    }
+
+    return [...options.values()].sort((left, right) =>
+      left.label.localeCompare(right.label, "fr", { sensitivity: "base" }),
+    );
+  } catch {
+    return technicians.map((technician) => ({
+      id: technician.id,
+      label: technician.name,
+      nni: technician.nni,
+      sourceType: "technician" as const,
+      sourceLabel: technician.role || "Technicien",
+    }));
   }
 }
 

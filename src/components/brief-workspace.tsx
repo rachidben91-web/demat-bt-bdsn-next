@@ -28,7 +28,7 @@ type BriefWorkspaceProps = {
   headerDateTimeLabel: string;
   isSuperAdmin?: boolean;
   role: string | null;
-  technicians: Array<{ id: string; label: string; nni: string }>;
+  technicians: Array<{ id: string; label: string; nni: string; sourceLabel: string }>;
   userEmail: string | null;
   weatherGeneratedAtLabel?: string | null;
   weatherZones?: import("@/lib/weather").HeaderWeatherZone[]; 

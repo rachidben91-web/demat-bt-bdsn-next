@@ -1,7 +1,7 @@
 import { BriefWorkspace } from "@/components/brief-workspace";
 import { getReadableOfficeModules, requireOfficeModule } from "@/lib/auth";
 import { getBtImportDayOverview } from "@/lib/bt-import-days";
-import { getSupportTechnicians } from "@/lib/support-journee";
+import { getBriefAssignmentOptions } from "@/lib/support-journee";
 import { getSupportWeatherBundle } from "@/lib/weather";
 
 type BriefPageProps = {
@@ -17,7 +17,7 @@ export default async function BriefPage({ searchParams }: BriefPageProps) {
   const selectedDate = resolvedSearchParams?.date ?? new Date().toISOString().slice(0, 10);
   const [data, technicians, weatherBundle] = await Promise.all([
     getBtImportDayOverview(resolvedSearchParams?.date),
-    getSupportTechnicians(),
+    getBriefAssignmentOptions(),
     getSupportWeatherBundle(selectedDate),
   ]);
   const headerDateTimeLabel = new Intl.DateTimeFormat("fr-FR", {
@@ -40,8 +40,9 @@ export default async function BriefPage({ searchParams }: BriefPageProps) {
       role={auth.role ?? auth.officeAccount?.officeRole ?? null}
       technicians={technicians.map((technician) => ({
         id: technician.id,
-        label: technician.name,
+        label: technician.label,
         nni: technician.nni,
+        sourceLabel: technician.sourceLabel,
       }))}
       userEmail={auth.user?.email ?? null}
       weatherGeneratedAtLabel={weatherBundle.generatedAtLabel}

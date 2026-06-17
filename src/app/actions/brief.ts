@@ -32,6 +32,16 @@ type TechnicianLookupRow = {
   nni: string;
 };
 
+type ManagerLookupRow = {
+  id: string;
+  name: string;
+};
+
+type ReferentLookupRow = {
+  full_name: string;
+  id: string;
+};
+
 function parseTeam(value: unknown): ExtractedTeamMember[] {
   if (!Array.isArray(value)) {
     return [];
@@ -100,6 +110,28 @@ async function getBtEntryOrThrow(entryId: string) {
   return { adminSupabase, entry: data };
 }
 
+function parseSelectedAssignmentIds(values: string[]) {
+  const technicianIds: string[] = [];
+  const managerIds: string[] = [];
+  const referentIds: string[] = [];
+
+  for (const value of values) {
+    if (value.startsWith("manager:")) {
+      managerIds.push(value.slice("manager:".length));
+      continue;
+    }
+
+    if (value.startsWith("referent:")) {
+      referentIds.push(value.slice("referent:".length));
+      continue;
+    }
+
+    technicianIds.push(value);
+  }
+
+  return { managerIds, referentIds, technicianIds };
+}
+
 export async function reassignBriefBtAction(
   previousState: BriefBtWorkflowActionState,
   formData: FormData,
@@ -129,26 +161,79 @@ export async function reassignBriefBtAction(
       throw new Error("Ce BT a deja ete remplace.");
     }
 
-    const { data: technicianRows, error: techniciansError } = await adminSupabase
-      .from("technicians")
-      .select("id, display_name, nni")
-      .in("id", selectedTechnicianIds);
+    const { managerIds, referentIds, technicianIds } = parseSelectedAssignmentIds(selectedTechnicianIds);
+    const [
+      { data: technicianRows, error: techniciansError },
+      { data: managerRows, error: managersError },
+      { data: referentRows, error: referentsError },
+    ] = await Promise.all([
+      technicianIds.length > 0
+        ? adminSupabase.from("technicians").select("id, display_name, nni").in("id", technicianIds)
+        : Promise.resolve({ data: [], error: null }),
+      managerIds.length > 0
+        ? adminSupabase.from("managers").select("id, name").in("id", managerIds)
+        : Promise.resolve({ data: [], error: null }),
+      referentIds.length > 0
+        ? adminSupabase.from("office_accounts").select("id, full_name").in("id", referentIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
 
     if (techniciansError) {
       throw new Error(techniciansError.message);
     }
 
+    if (managersError) {
+      throw new Error(managersError.message);
+    }
+
+    if (referentsError) {
+      throw new Error(referentsError.message);
+    }
+
     const technicianById = new Map(
       ((technicianRows ?? []) as TechnicianLookupRow[]).map((technician) => [technician.id, technician]),
     );
+    const managerById = new Map(
+      ((managerRows ?? []) as ManagerLookupRow[]).map((manager) => [manager.id, manager]),
+    );
+    const referentById = new Map(
+      ((referentRows ?? []) as ReferentLookupRow[]).map((referent) => [referent.id, referent]),
+    );
 
     const nextTeam = selectedTechnicianIds
-      .map((technicianId) => technicianById.get(technicianId))
-      .filter((technician): technician is TechnicianLookupRow => Boolean(technician))
-      .map((technician) => ({
-        name: technician.display_name,
-        nni: technician.nni,
-      }));
+      .map((selectedId) => {
+        if (selectedId.startsWith("manager:")) {
+          const manager = managerById.get(selectedId.slice("manager:".length));
+
+          return manager
+            ? {
+                name: manager.name,
+                nni: "",
+              }
+            : null;
+        }
+
+        if (selectedId.startsWith("referent:")) {
+          const referent = referentById.get(selectedId.slice("referent:".length));
+
+          return referent
+            ? {
+                name: referent.full_name,
+                nni: "",
+              }
+            : null;
+        }
+
+        const technician = technicianById.get(selectedId);
+
+        return technician
+          ? {
+              name: technician.display_name,
+              nni: technician.nni,
+            }
+          : null;
+      })
+      .filter((technician): technician is ExtractedTeamMember => Boolean(technician));
 
     if (nextTeam.length !== selectedTechnicianIds.length) {
       throw new Error("Impossible de retrouver toute la selection technicien.");

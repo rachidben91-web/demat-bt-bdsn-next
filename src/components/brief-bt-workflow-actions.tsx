@@ -14,6 +14,7 @@ type TechnicianOption = {
   id: string;
   label: string;
   nni: string;
+  sourceLabel: string;
 };
 
 type ReplacementCandidate = {
@@ -244,7 +245,10 @@ export function BriefBtWorkflowActions({
                         type="checkbox"
                         value={technician.id}
                       />
-                      <span className="font-medium">{technician.label}</span>
+                      <span className="min-w-0">
+                        <span className="block font-medium">{technician.label}</span>
+                        <span className="block text-xs text-slate-500">{technician.sourceLabel}</span>
+                      </span>
                     </label>
                   );
                 })}
