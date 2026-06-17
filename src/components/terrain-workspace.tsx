@@ -284,6 +284,7 @@ export function TerrainWorkspace({
                       <div className="mt-4">
                         <TerrainBtPdfButton
                           btEntryId={bt.btEntryId ?? bt.btId}
+                          btId={bt.btId}
                           dispatchItemId={mobileDispatch.id}
                         />
                       </div>

@@ -38,6 +38,7 @@ function parseBtIds(value: unknown) {
 export async function getTerrainBtPdfSignedUrl(
   dispatchItemId: string,
   btEntryId: string,
+  btId?: string,
 ): Promise<{ url: string } | { error: string }> {
   const auth = await requireTerrainAccess();
   const adminSupabase = createServerSupabaseAdminClient();
@@ -49,6 +50,7 @@ export async function getTerrainBtPdfSignedUrl(
   try {
     const normalizedDispatchItemId = dispatchItemId.trim();
     const normalizedBtEntryId = btEntryId.trim();
+    const normalizedBtId = String(btId ?? "").trim();
     const technicianId = auth.officeAccount?.technicianId ?? null;
     const officeAccountId = auth.officeAccount?.id ?? null;
 
@@ -84,6 +86,7 @@ export async function getTerrainBtPdfSignedUrl(
     }
 
     let btEntry: TerrainBtEntryRow | null = null;
+    let fallbackBtId = normalizedBtId;
 
     if (isUuidLike(normalizedBtEntryId)) {
       const { data: btEntryById, error: btEntryByIdError } = await adminSupabase
@@ -98,15 +101,39 @@ export async function getTerrainBtPdfSignedUrl(
       }
 
       btEntry = btEntryById ?? null;
+      fallbackBtId = btEntryById?.bt_id ?? fallbackBtId;
+    }
+
+    if (!btEntry && !fallbackBtId) {
+      const { data: payloadRow, error: payloadError } = await adminSupabase
+        .from("mobile_dispatch_items")
+        .select("bt_payload")
+        .eq("id", normalizedDispatchItemId)
+        .maybeSingle<{ bt_payload: unknown }>();
+
+      if (!payloadError && payloadRow && Array.isArray(payloadRow.bt_payload)) {
+        const matchedPayloadBt = payloadRow.bt_payload.find((item) => {
+          if (!item || typeof item !== "object") {
+            return false;
+          }
+
+          const candidate = item as Record<string, unknown>;
+          return candidate.btEntryId === normalizedBtEntryId && typeof candidate.btId === "string";
+        }) as { btId?: string } | undefined;
+
+        fallbackBtId = matchedPayloadBt?.btId?.trim() ?? "";
+      }
     }
 
     if (!btEntry) {
+      const lookupBtId = fallbackBtId || normalizedBtEntryId;
       const { data: btEntryByBtId, error: btEntryByBtIdError } = await adminSupabase
         .from("bt_import_entries")
         .select("id, bt_id, derived_pdf_storage_path")
         .eq("import_day_id", dispatch.bt_import_day_id)
-        .eq("bt_id", normalizedBtEntryId)
-        .order("page_start", { ascending: true })
+        .eq("bt_id", lookupBtId)
+        .order("replacement_of_entry_id", { ascending: false, nullsFirst: false })
+        .order("page_start", { ascending: false })
         .limit(1)
         .maybeSingle<TerrainBtEntryRow>();
 

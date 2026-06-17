@@ -5,10 +5,11 @@ import { getTerrainBtPdfSignedUrl } from "@/app/actions/terrain-pdf";
 
 type TerrainBtPdfButtonProps = {
   btEntryId: string;
+  btId: string;
   dispatchItemId: string;
 };
 
-export function TerrainBtPdfButton({ btEntryId, dispatchItemId }: TerrainBtPdfButtonProps) {
+export function TerrainBtPdfButton({ btEntryId, btId, dispatchItemId }: TerrainBtPdfButtonProps) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startPdfTransition] = useTransition();
 
@@ -19,7 +20,7 @@ export function TerrainBtPdfButton({ btEntryId, dispatchItemId }: TerrainBtPdfBu
 
     startPdfTransition(() => {
       void (async () => {
-        const result = await getTerrainBtPdfSignedUrl(dispatchItemId, btEntryId);
+        const result = await getTerrainBtPdfSignedUrl(dispatchItemId, btEntryId, btId);
 
         if ("error" in result) {
           popup?.close();
