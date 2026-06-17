@@ -3,12 +3,19 @@
 import { revalidatePath } from "next/cache";
 import { requireOfficeWriteModule } from "@/lib/auth";
 import { getEffectiveTeam } from "@/lib/bt-workflow";
-import type { ExtractedBt, ExtractedTeamMember } from "@/lib/pdf-import/types";
+import type { ExtractedBt, ExtractedTeamMember, PdfImportAnalysis } from "@/lib/pdf-import/types";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
 export type BriefBtWorkflowActionState = {
   error: string | null;
   success: string | null;
+};
+
+export type SaveUnitaryBtImportResult = {
+  entryId?: string;
+  importedBtId?: string;
+  message: string;
+  ok: boolean;
 };
 
 type BtLookupRow = {
@@ -40,6 +47,21 @@ type ManagerLookupRow = {
 type ReferentLookupRow = {
   full_name: string;
   id: string;
+};
+
+type ImportDayLookupRow = {
+  day_date: string;
+  id: string;
+};
+
+type UnitaryImportLookupRow = {
+  bt_id: string;
+  id: string;
+  page_start: number;
+  replaced_by_entry_id?: string | null;
+  replacement_of_entry_id?: string | null;
+  source_mode?: string | null;
+  superseded_at?: string | null;
 };
 
 function parseTeam(value: unknown): ExtractedTeamMember[] {
@@ -130,6 +152,160 @@ function parseSelectedAssignmentIds(values: string[]) {
   }
 
   return { managerIds, referentIds, technicianIds };
+}
+
+export async function saveUnitaryBtImportAction(
+  importDayId: string,
+  analysis: PdfImportAnalysis,
+): Promise<SaveUnitaryBtImportResult> {
+  const auth = await requireOfficeWriteModule("brief");
+
+  try {
+    if (!importDayId) {
+      throw new Error("Journee introuvable pour l'import unitaire.");
+    }
+
+    if (analysis.bts.length === 0) {
+      throw new Error("Aucun BT n'a ete detecte dans le PDF.");
+    }
+
+    if (analysis.bts.length > 1) {
+      throw new Error("Le PDF unitaire doit contenir un seul BT.");
+    }
+
+    const unitaryBt = analysis.bts[0];
+
+    if (!unitaryBt.derivedPdfStoragePath) {
+      throw new Error("Le dossier PDF derive du BT est manquant.");
+    }
+
+    const adminSupabase = createServerSupabaseAdminClient();
+
+    if (!adminSupabase) {
+      throw new Error("Client admin Supabase indisponible. Verifie la cle service role.");
+    }
+
+    const { data: dayRow, error: dayError } = await adminSupabase
+      .from("bt_import_days")
+      .select("id, day_date")
+      .eq("id", importDayId)
+      .maybeSingle<ImportDayLookupRow>();
+
+    if (dayError || !dayRow) {
+      throw new Error(dayError?.message ?? "Journee importee introuvable.");
+    }
+
+    const { data: existingEntries, error: existingEntriesError } = await adminSupabase
+      .from("bt_import_entries")
+      .select("id, bt_id, page_start, source_mode, replacement_of_entry_id, replaced_by_entry_id, superseded_at")
+      .eq("import_day_id", importDayId)
+      .order("page_start", { ascending: false });
+
+    if (existingEntriesError) {
+      throw new Error(existingEntriesError.message);
+    }
+
+    const existingRows = (existingEntries ?? []) as UnitaryImportLookupRow[];
+    const reusableEntry =
+      existingRows.find(
+        (entry) =>
+          entry.bt_id === unitaryBt.id &&
+          entry.source_mode === "unitary_import" &&
+          !entry.replacement_of_entry_id &&
+          !entry.replaced_by_entry_id &&
+          !entry.superseded_at,
+      ) ?? null;
+    const nextPageStart = Math.max(0, ...existingRows.map((entry) => entry.page_start)) + 1;
+    const entryPayload = {
+      analyse_des_risques: unitaryBt.analyseDesRisques,
+      at_num: unitaryBt.atNum,
+      brief_workflow_status: "normal",
+      bt_id: unitaryBt.id,
+      client: unitaryBt.client,
+      date_prevue: unitaryBt.datePrevue,
+      derived_pdf_page_count: unitaryBt.derivedPdfPageCount ?? null,
+      derived_pdf_storage_path: unitaryBt.derivedPdfStoragePath,
+      designation: unitaryBt.designation,
+      docs: unitaryBt.docs,
+      duree: unitaryBt.duree,
+      import_day_id: importDayId,
+      localisation: unitaryBt.localisation,
+      mobile_ready: false,
+      mobile_ready_at: null,
+      mobile_ready_by_email: null,
+      o2_pending_at: null,
+      o2_pending_by_email: null,
+      o2_validated_at: null,
+      o2_validated_by_email: null,
+      objet: unitaryBt.objet,
+      observations: unitaryBt.observations,
+      page_start: reusableEntry?.page_start ?? nextPageStart,
+      replaced_by_entry_id: null,
+      replacement_of_entry_id: null,
+      source_mode: "unitary_import",
+      superseded_at: null,
+      superseded_by_email: null,
+      team: unitaryBt.team,
+      team_override: null,
+      workflow_note: null,
+    };
+
+    let entryId = reusableEntry?.id ?? null;
+
+    if (reusableEntry) {
+      const { error: updateEntryError } = await adminSupabase
+        .from("bt_import_entries")
+        .update(entryPayload)
+        .eq("id", reusableEntry.id);
+
+      if (updateEntryError) {
+        throw new Error(updateEntryError.message);
+      }
+    } else {
+      const { data: insertedEntry, error: insertEntryError } = await adminSupabase
+        .from("bt_import_entries")
+        .insert(entryPayload)
+        .select("id")
+        .single<{ id: string }>();
+
+      if (insertEntryError || !insertedEntry) {
+        throw new Error(insertEntryError?.message ?? "Impossible d'enregistrer le BT unitaire.");
+      }
+
+      entryId = insertedEntry.id;
+    }
+
+    const totalEntries = reusableEntry ? existingRows.length : existingRows.length + 1;
+    const { error: updateDayError } = await adminSupabase
+      .from("bt_import_days")
+      .update({
+        bt_count: totalEntries,
+        imported_by_email: auth.user?.email ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", dayRow.id);
+
+    if (updateDayError) {
+      throw new Error(updateDayError.message);
+    }
+
+    revalidatePath("/brief");
+    revalidatePath("/referent");
+
+    return {
+      entryId: entryId ?? undefined,
+      importedBtId: unitaryBt.id,
+      message: reusableEntry
+        ? `${unitaryBt.id} a ete mis a jour dans la journee ${dayRow.day_date}.`
+        : `${unitaryBt.id} a ete ajoute a la journee ${dayRow.day_date}.`,
+      ok: true,
+    };
+  } catch (error) {
+    return {
+      message: error instanceof Error ? error.message : "Import unitaire impossible.",
+      ok: false,
+    };
+  }
 }
 
 export async function reassignBriefBtAction(

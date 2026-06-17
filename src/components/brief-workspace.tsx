@@ -1,7 +1,9 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
+import { saveUnitaryBtImportAction } from "@/app/actions/brief";
 import { AppShellHeader } from "@/components/app-shell-header";
 import { BriefBtWorkflowActions } from "@/components/brief-bt-workflow-actions";
 import type { BtImportDayOverview } from "@/lib/bt-import-days";
@@ -16,6 +18,8 @@ import {
 } from "@/lib/bt-workflow";
 import { getModuleTheme } from "@/lib/module-theme";
 import { detectBtCategory, detectPrimaryBadge, getBtCategoryOrder } from "@/lib/pdf-import/badges";
+import { createDerivedBtPdfFiles } from "@/lib/pdf-import/derived-pdf";
+import { analyzePdfFile } from "@/lib/pdf-import/extractor";
 import { openPdfDocumentFromUrl } from "@/lib/pdf-import/pdf-viewer";
 import type { ExtractedBt } from "@/lib/pdf-import/types";
 import { DOC_TYPES_CONFIG } from "@/lib/pdf-import/ui-config";
@@ -73,6 +77,25 @@ function formatDayLabel(value: string) {
 
 function formatDuree(value: string) {
   return value.replace(/\s+/g, " ").trim();
+}
+
+function sanitizeFileSegment(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function buildUnitaryImportToken() {
+  return new Date().toISOString().replace(/[:.]/g, "-");
+}
+
+function buildUnitaryDerivedStoragePath(dayIso: string, btId: string, token: string) {
+  const safeBtId = sanitizeFileSegment(btId.toUpperCase());
+
+  return `VLG/${dayIso}/unitary/${token}-${safeBtId || "BT"}.pdf`;
 }
 
 function getTeamGroupSummary(bt: ExtractedBt) {
@@ -220,6 +243,7 @@ export function BriefWorkspace({
   weatherGeneratedAtLabel,
   weatherZones = [],
 }: BriefWorkspaceProps) {
+  const router = useRouter();
   const briefTheme = getModuleTheme("brief");
   const { bts, currentDay, days } = data;
   const [query, setQuery] = useState("");
@@ -239,7 +263,12 @@ export function BriefWorkspace({
   });
   const [viewerPageOrientation, setViewerPageOrientation] = useState<"portrait" | "landscape">("portrait");
   const [viewerLoading, startViewerTransition] = useTransition();
+  const [unitaryImportPending, startUnitaryImportTransition] = useTransition();
+  const [unitaryImportError, setUnitaryImportError] = useState<string | null>(null);
+  const [unitaryImportMessage, setUnitaryImportMessage] = useState<string | null>(null);
+  const [unitaryImportStatus, setUnitaryImportStatus] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const unitaryImportInputRef = useRef<HTMLInputElement | null>(null);
   const viewerViewportRef = useRef<HTMLDivElement | null>(null);
   const viewerPanSessionRef = useRef<{
     originX: number;
@@ -691,6 +720,102 @@ export function BriefWorkspace({
     });
   }
 
+  function handleUnitaryImportClick() {
+    if (unitaryImportPending || !currentDay) {
+      return;
+    }
+
+    setUnitaryImportError(null);
+    setUnitaryImportMessage(null);
+    unitaryImportInputRef.current?.click();
+  }
+
+  function handleUnitaryImportFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    event.target.value = "";
+
+    if (!file || !currentDay) {
+      return;
+    }
+
+    setUnitaryImportError(null);
+    setUnitaryImportMessage(null);
+    setUnitaryImportStatus("Analyse du PDF unitaire...");
+
+    startUnitaryImportTransition(async () => {
+      try {
+        const analysis = await analyzePdfFile(file, setUnitaryImportStatus);
+
+        if (analysis.bts.length === 0) {
+          throw new Error("Aucun BT n'a ete detecte dans le PDF selectionne.");
+        }
+
+        if (analysis.bts.length > 1) {
+          throw new Error("Le PDF unitaire doit contenir un seul BT.");
+        }
+
+        const unitaryBt = analysis.bts[0];
+
+        setUnitaryImportStatus("Preparation du dossier PDF derive...");
+        const derivedPdfs = await createDerivedBtPdfFiles(file, analysis, setUnitaryImportStatus);
+        const derivedPdf = derivedPdfs.get(unitaryBt.id);
+
+        if (!derivedPdf) {
+          throw new Error("Le dossier PDF du BT n'a pas pu etre prepare.");
+        }
+
+        const uploadToken = buildUnitaryImportToken();
+        const derivedStoragePath = buildUnitaryDerivedStoragePath(
+          currentDay.dayDate,
+          unitaryBt.id,
+          uploadToken,
+        );
+        const supabase = createBrowserSupabaseClient();
+
+        setUnitaryImportStatus(`Televersement du dossier ${unitaryBt.id}...`);
+        const { error: derivedUploadError } = await supabase.storage
+          .from("bt-import-pdfs")
+          .upload(derivedStoragePath, derivedPdf.bytes, {
+            contentType: "application/pdf",
+            upsert: true,
+          });
+
+        if (derivedUploadError) {
+          throw derivedUploadError;
+        }
+
+        const result = await saveUnitaryBtImportAction(
+          currentDay.id,
+          {
+            ...analysis,
+            importedDayIso: currentDay.dayDate,
+            bts: [
+              {
+                ...unitaryBt,
+                derivedPdfPageCount: derivedPdf.pageCount,
+                derivedPdfStoragePath: derivedStoragePath,
+              },
+            ],
+          },
+        );
+
+        if (!result.ok) {
+          throw new Error(result.message);
+        }
+
+        setUnitaryImportMessage(result.message);
+        setUnitaryImportStatus("Import unitaire termine.");
+        router.refresh();
+      } catch (caughtError) {
+        setUnitaryImportError(
+          caughtError instanceof Error ? caughtError.message : "Import unitaire impossible.",
+        );
+        setUnitaryImportStatus(null);
+      }
+    });
+  }
+
   function closeViewer() {
     viewerRenderTaskRef.current?.cancel();
     viewerRenderTaskRef.current = null;
@@ -854,6 +979,13 @@ export function BriefWorkspace({
               </div>
 
               <div className="mt-4 rounded-[22px] border border-slate-200 bg-white/90 p-3 shadow-sm">
+                <input
+                  accept="application/pdf"
+                  className="sr-only"
+                  onChange={handleUnitaryImportFileChange}
+                  ref={unitaryImportInputRef}
+                  type="file"
+                />
                 <div className="flex flex-col gap-3 min-[1680px]:grid min-[1680px]:grid-cols-[240px_minmax(0,0.9fr)_260px_auto] min-[1680px]:items-center">
                   <select
                     className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-blue-400"
@@ -887,9 +1019,11 @@ export function BriefWorkspace({
                   <div className="flex flex-wrap gap-2 min-[1440px]:justify-end">
                     <button
                       className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-blue-200 hover:text-blue-700"
+                      disabled={unitaryImportPending || !currentDay}
+                      onClick={handleUnitaryImportClick}
                       type="button"
                     >
-                      Importer BT unitaire
+                      {unitaryImportPending ? "Import en cours..." : "Importer BT unitaire"}
                     </button>
                     {[
                       { key: "large", label: "Grandes vignettes" },
@@ -932,6 +1066,21 @@ export function BriefWorkspace({
                     ))}
                   </div>
                 </div>
+                {unitaryImportError ? (
+                  <p className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                    {unitaryImportError}
+                  </p>
+                ) : null}
+                {!unitaryImportError && unitaryImportMessage ? (
+                  <p className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    {unitaryImportMessage}
+                  </p>
+                ) : null}
+                {!unitaryImportError && unitaryImportStatus ? (
+                  <p className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                    {unitaryImportStatus}
+                  </p>
+                ) : null}
               </div>
             </section>
 
