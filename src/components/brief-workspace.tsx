@@ -15,6 +15,7 @@ import {
   isBtO2Validated,
   isBtPendingO2,
   isBtSuperseded,
+  shouldDisplayBtInBriefWorkspace,
 } from "@/lib/bt-workflow";
 import { getModuleTheme } from "@/lib/module-theme";
 import { detectBtCategory, detectPrimaryBadge, getBtCategoryOrder } from "@/lib/pdf-import/badges";
@@ -279,15 +280,22 @@ export function BriefWorkspace({
   const viewerRenderTaskRef = useRef<{ cancel: () => void } | null>(null);
   const [isViewerPanning, setIsViewerPanning] = useState(false);
   const hasManualViewModeRef = useRef(false);
+  const visibleBts = useMemo(() => bts.filter(shouldDisplayBtInBriefWorkspace), [bts]);
 
   const technicianOptions = useMemo(
     () =>
-      [...new Set(bts.flatMap((bt) => getEffectiveTeam(bt).map((member) => member.name || member.nni)).filter(Boolean))].sort(),
-    [bts],
+      [
+        ...new Set(
+          visibleBts
+            .flatMap((bt) => getEffectiveTeam(bt).map((member) => member.name || member.nni))
+            .filter(Boolean),
+        ),
+      ].sort(),
+    [visibleBts],
   );
 
   const filteredBts = useMemo(() => {
-    return bts.filter((bt) => {
+    return visibleBts.filter((bt) => {
       const queryMatch =
         query.length === 0 ||
         normalizeText(
@@ -307,7 +315,7 @@ export function BriefWorkspace({
 
       return queryMatch && technicianMatch;
     });
-  }, [bts, query, selectedTechnician]);
+  }, [query, selectedTechnician, visibleBts]);
 
   const replacementCandidates = useMemo(
     () =>

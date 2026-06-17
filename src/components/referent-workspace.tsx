@@ -5,7 +5,12 @@ import { AppShellHeader } from "@/components/app-shell-header";
 import { MobileDispatchPublishCard } from "@/components/mobile-dispatch-publish-card";
 import { ReferentPrepareBtButton } from "@/components/referent-prepare-bt-button";
 import type { BtImportDayOverview } from "@/lib/bt-import-days";
-import { getOriginalTeamMembers, hasTeamOverride, isBtPendingO2, isBtSuperseded } from "@/lib/bt-workflow";
+import {
+  getOriginalTeamMembers,
+  hasTeamOverride,
+  isBtPendingO2,
+  shouldDisplayBtInReferentWorkspace,
+} from "@/lib/bt-workflow";
 import type { MobileDispatchStatusSnapshot } from "@/lib/mobile-dispatch";
 import { getModuleTheme } from "@/lib/module-theme";
 import { detectPrimaryBadge } from "@/lib/pdf-import/badges";
@@ -147,7 +152,7 @@ export function ReferentWorkspace({
 }: ReferentWorkspaceProps) {
   const referentTheme = getModuleTheme("referent");
   const { bts, currentDay, days } = data;
-  const activeBts = useMemo(() => bts.filter((bt) => !isBtSuperseded(bt)), [bts]);
+  const activeBts = useMemo(() => bts.filter(shouldDisplayBtInReferentWorkspace), [bts]);
   const [query, setQuery] = useState("");
   const [selectedTechnician, setSelectedTechnician] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState<DispatchStatus | "all">("all");

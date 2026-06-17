@@ -51,3 +51,15 @@ export function isBtO2Validated(bt: ExtractedBt) {
 export function isBtSuperseded(bt: ExtractedBt) {
   return Boolean(bt.supersededAt || bt.replacedByEntryId);
 }
+
+export function isUnusedUnitaryImport(bt: ExtractedBt) {
+  return bt.sourceMode === "unitary_import" && !bt.replacementOfEntryId && !isBtSuperseded(bt);
+}
+
+export function shouldDisplayBtInBriefWorkspace(bt: ExtractedBt) {
+  return !isUnusedUnitaryImport(bt);
+}
+
+export function shouldDisplayBtInReferentWorkspace(bt: ExtractedBt) {
+  return !isBtSuperseded(bt) && !isUnusedUnitaryImport(bt);
+}
