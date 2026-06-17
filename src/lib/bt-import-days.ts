@@ -168,6 +168,7 @@ function mapEntryRow(row: BtImportEntryRow): ExtractedBt {
     sourceMode: parseSourceMode(row.source_mode),
     briefWorkflowStatus: parseBriefWorkflowStatus(row.brief_workflow_status),
     teamOverride: parseTeam(row.team_override),
+    replacementSourceTeam: null,
     workflowNote: row.workflow_note ?? null,
     o2PendingAt: row.o2_pending_at ?? null,
     o2PendingByEmail: row.o2_pending_by_email ?? null,
@@ -236,9 +237,30 @@ export async function getBtImportDayOverview(
     };
   }
 
+  const mappedEntries = ((entriesData ?? []) as BtImportEntryRow[]).map(mapEntryRow);
+  const entryById = new Map(
+    mappedEntries
+      .filter((entry): entry is ExtractedBt & { entryId: string } => Boolean(entry.entryId))
+      .map((entry) => [entry.entryId, entry]),
+  );
+
+  for (const entry of mappedEntries) {
+    if (!entry.replacementOfEntryId) {
+      continue;
+    }
+
+    const sourceEntry = entryById.get(entry.replacementOfEntryId);
+
+    if (!sourceEntry) {
+      continue;
+    }
+
+    entry.replacementSourceTeam = sourceEntry.team;
+  }
+
   return {
     currentDay,
-    bts: ((entriesData ?? []) as BtImportEntryRow[]).map(mapEntryRow),
+    bts: mappedEntries,
     days,
     source: "supabase",
   };

@@ -37,6 +37,10 @@ export function getUniqueTeamMembers(bt: ExtractedBt) {
 }
 
 export function getOriginalTeamMembers(bt: ExtractedBt) {
+  if (Array.isArray(bt.replacementSourceTeam) && bt.replacementSourceTeam.length > 0) {
+    return getUniqueTeamMembersFromTeam(bt.replacementSourceTeam);
+  }
+
   return getUniqueTeamMembersFromTeam(bt.team);
 }
 

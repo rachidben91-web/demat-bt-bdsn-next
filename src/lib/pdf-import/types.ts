@@ -45,6 +45,7 @@ export type ExtractedBt = {
   sourceMode?: BtSourceMode;
   briefWorkflowStatus?: BtBriefWorkflowStatus;
   teamOverride?: ExtractedTeamMember[] | null;
+  replacementSourceTeam?: ExtractedTeamMember[] | null;
   workflowNote?: string | null;
   o2PendingAt?: string | null;
   o2PendingByEmail?: string | null;
