@@ -36,8 +36,49 @@ const initialState: BriefBtWorkflowActionState = {
   success: null,
 };
 
+type FloatingPanelLayout = {
+  left: number;
+  maxHeight: number;
+  top: number;
+  width: number;
+};
+
 function normalizeKey(value: string) {
   return value.trim().toUpperCase();
+}
+
+function buildFloatingPanelLayout(button: HTMLButtonElement | null, desiredWidth: number) {
+  if (!button) {
+    return {
+      left: 12,
+      maxHeight: 420,
+      top: 96,
+      width: desiredWidth,
+    } satisfies FloatingPanelLayout;
+  }
+
+  const rect = button.getBoundingClientRect();
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const width = Math.min(desiredWidth, viewportWidth - 24);
+  const left = Math.max(12, Math.min(rect.left, viewportWidth - width - 12));
+  const availableBelow = viewportHeight - rect.bottom - 20;
+  const availableAbove = rect.top - 20;
+  const shouldOpenAbove = availableBelow < 260 && availableAbove > availableBelow;
+  const maxHeight = Math.max(
+    220,
+    Math.min(520, shouldOpenAbove ? availableAbove - 12 : availableBelow - 8),
+  );
+  const top = shouldOpenAbove
+    ? Math.max(12, rect.top - maxHeight - 12)
+    : Math.min(rect.bottom + 8, viewportHeight - maxHeight - 12);
+
+  return {
+    left,
+    maxHeight,
+    top,
+    width,
+  } satisfies FloatingPanelLayout;
 }
 
 export function BriefBtWorkflowActions({
@@ -48,14 +89,22 @@ export function BriefBtWorkflowActions({
 }: BriefBtWorkflowActionsProps) {
   const reassignButtonRef = useRef<HTMLButtonElement | null>(null);
   const reassignPanelRef = useRef<HTMLDivElement | null>(null);
+  const replaceButtonRef = useRef<HTMLButtonElement | null>(null);
+  const replacePanelRef = useRef<HTMLDivElement | null>(null);
   const [isReassignOpen, setIsReassignOpen] = useState(false);
   const [isReplaceOpen, setIsReplaceOpen] = useState(false);
   const [selectedReplacementId, setSelectedReplacementId] = useState("");
-  const [reassignPanelLayout, setReassignPanelLayout] = useState({
+  const [reassignPanelLayout, setReassignPanelLayout] = useState<FloatingPanelLayout>({
     left: 0,
     maxHeight: 420,
     top: 0,
     width: 520,
+  });
+  const [replacePanelLayout, setReplacePanelLayout] = useState<FloatingPanelLayout>({
+    left: 0,
+    maxHeight: 360,
+    top: 0,
+    width: 480,
   });
   const [reassignState, reassignAction, reassignPending] = useActionState(
     reassignBriefBtAction,
@@ -89,7 +138,7 @@ export function BriefBtWorkflowActions({
   const canReplace = bt.briefWorkflowStatus === "o2_validated" && !isSuperseded;
 
   useEffect(() => {
-    if (!isReassignOpen) {
+    if (!isReassignOpen && !isReplaceOpen) {
       return undefined;
     }
 
@@ -100,16 +149,23 @@ export function BriefBtWorkflowActions({
         return;
       }
 
-      if (reassignPanelRef.current?.contains(target) || reassignButtonRef.current?.contains(target)) {
+      if (
+        reassignPanelRef.current?.contains(target) ||
+        reassignButtonRef.current?.contains(target) ||
+        replacePanelRef.current?.contains(target) ||
+        replaceButtonRef.current?.contains(target)
+      ) {
         return;
       }
 
       setIsReassignOpen(false);
+      setIsReplaceOpen(false);
     }
 
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setIsReassignOpen(false);
+        setIsReplaceOpen(false);
       }
     }
 
@@ -120,30 +176,26 @@ export function BriefBtWorkflowActions({
       window.removeEventListener("mousedown", closeOnOutsideClick);
       window.removeEventListener("keydown", closeOnEscape);
     };
-  }, [isReassignOpen]);
+  }, [isReassignOpen, isReplaceOpen]);
 
   function openReassignPanel() {
-    const buttonRect = reassignButtonRef.current?.getBoundingClientRect();
-
-    if (!buttonRect) {
-      setIsReassignOpen(true);
-      return;
-    }
-
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    const desiredWidth = Math.min(560, viewportWidth - 24);
-    const left = Math.max(12, Math.min(buttonRect.left, viewportWidth - desiredWidth - 12));
-    const top = Math.min(buttonRect.bottom + 8, viewportHeight - 220);
-    const maxHeight = Math.max(220, Math.min(520, viewportHeight - top - 16));
-
-    setReassignPanelLayout({
-      left,
-      maxHeight,
-      top,
-      width: desiredWidth,
-    });
+    setReplaceOpenState(false);
+    setReassignPanelLayout(buildFloatingPanelLayout(reassignButtonRef.current, 560));
     setIsReassignOpen(true);
+  }
+
+  function setReplaceOpenState(nextValue: boolean) {
+    setIsReplaceOpen(nextValue);
+
+    if (!nextValue) {
+      setSelectedReplacementId("");
+    }
+  }
+
+  function openReplacePanel() {
+    setIsReassignOpen(false);
+    setReplacePanelLayout(buildFloatingPanelLayout(replaceButtonRef.current, 500));
+    setReplaceOpenState(true);
   }
 
   return (
@@ -179,7 +231,8 @@ export function BriefBtWorkflowActions({
             ? "rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
             : "rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"}
           disabled={!canReplace}
-          onClick={() => setIsReplaceOpen(true)}
+          onClick={openReplacePanel}
+          ref={replaceButtonRef}
           type="button"
         >
           Remplacer BT
@@ -283,19 +336,27 @@ export function BriefBtWorkflowActions({
       ) : null}
 
       {isReplaceOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-4">
-          <div className="w-full max-w-xl rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_30px_90px_rgba(15,23,42,0.22)]">
+        <div
+          className="fixed z-50"
+          ref={replacePanelRef}
+          style={{
+            left: `${replacePanelLayout.left}px`,
+            top: `${replacePanelLayout.top}px`,
+            width: `${replacePanelLayout.width}px`,
+          }}
+        >
+          <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_30px_90px_rgba(15,23,42,0.22)]">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h3 className="text-xl font-semibold text-slate-950">Remplacer {bt.id}</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
+                <h3 className="text-base font-semibold text-slate-950">Remplacer {bt.id}</h3>
+                <p className="mt-1.5 text-xs leading-5 text-slate-600">
                   Selectionne un BT unitaire actif pour remplacer ce BT et reprendre le flux referent.
                 </p>
               </div>
               <button
-                className="rounded-full border border-slate-200 px-3 py-1 text-sm font-semibold text-slate-500"
+                className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-500"
                 disabled={replacePending}
-                onClick={() => setIsReplaceOpen(false)}
+                onClick={() => setReplaceOpenState(false)}
                 type="button"
               >
                 Fermer
@@ -341,7 +402,7 @@ export function BriefBtWorkflowActions({
                 <button
                   className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm"
                   disabled={replacePending}
-                  onClick={() => setIsReplaceOpen(false)}
+                  onClick={() => setReplaceOpenState(false)}
                   type="button"
                 >
                   Annuler
