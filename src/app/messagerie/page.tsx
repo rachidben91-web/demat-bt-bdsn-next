@@ -16,7 +16,10 @@ export default async function MessageriePage({ searchParams }: MessageriePagePro
   const [data, messageTargets, recentMessages] = await Promise.all([
     getSupportJourneeData(resolvedSearchParams?.date),
     getMessagingTechnicianTargets(),
-    getRecentOfficeMessages(),
+    getRecentOfficeMessages({
+      viewerOfficeAccountId: auth.officeAccount?.id ?? null,
+      viewerRole: auth.role,
+    }),
   ]);
   const headerDateTimeLabel = new Intl.DateTimeFormat("fr-FR", {
     weekday: "long",

@@ -35,6 +35,7 @@ export type OfficeMessageRecipient = {
 
 export type OfficeMessageSummary = {
   attachments: OfficeMessageAttachment[];
+  archivedAt?: string | null;
   body: string;
   currentReadAt?: string | null;
   currentRecipientId?: string | null;
@@ -56,7 +57,9 @@ type MessageRow = {
   target_type: MessagingTargetType;
   target_label: string;
   target_site: string | null;
+  archived_at?: string | null;
   sent_by_email: string;
+  sent_by_user_id?: string | null;
   sent_at: string;
   office_accounts?: OfficeAccountRelationRow;
   office_message_attachments: AttachmentRow[] | null;
@@ -133,6 +136,7 @@ function mapMessage(row: MessageRow): OfficeMessageSummary {
 
   return {
     attachments: (row.office_message_attachments ?? []).map(mapAttachment),
+    archivedAt: row.archived_at ?? null,
     body: row.body,
     id: row.id,
     recipients: (row.office_message_recipients ?? []).map(mapRecipient),
@@ -209,25 +213,48 @@ export async function getMessagingTechnicianTargets(): Promise<MessagingTechnici
   });
 }
 
-export async function getRecentOfficeMessages(limit = 8): Promise<OfficeMessageSummary[]> {
+export async function getRecentOfficeMessages(options?: {
+  viewerOfficeAccountId?: string | null;
+  viewerRole?: "admin" | "manager" | "agent" | null;
+  limit?: number;
+}): Promise<OfficeMessageSummary[]> {
   if (!isSupabaseConfigured()) {
     return [];
   }
 
+  const limit = options?.limit ?? 8;
   const supabase = await getServerReader();
-  const { data, error } = await supabase
+  let query = supabase
     .from("office_messages")
     .select(
-      "id, title, body, target_type, target_label, target_site, sent_by_email, sent_at, office_accounts!office_messages_sent_by_user_id_fkey(full_name), office_message_recipients(id, read_at, site_code, technician_id, technician_name), office_message_attachments(id, file_name, file_size, mime_type, storage_path)",
+      "id, title, body, target_type, target_label, target_site, archived_at, sent_by_email, sent_by_user_id, sent_at, office_accounts!office_messages_sent_by_user_id_fkey(full_name), office_message_recipients(id, read_at, site_code, technician_id, technician_name), office_message_attachments(id, file_name, file_size, mime_type, storage_path)",
     )
     .order("sent_at", { ascending: false })
+    .is("archived_at", null)
     .limit(limit);
+
+  if (options?.viewerRole !== "admin") {
+    if (!options?.viewerOfficeAccountId) {
+      return [];
+    }
+
+    query = query.eq("sent_by_user_id", options.viewerOfficeAccountId);
+  }
+
+  const { data, error } = await query;
 
   if (error || !data) {
     return [];
   }
 
-  return (data as MessageRow[]).map(mapMessage);
+  const messages = (data as MessageRow[]).map(mapMessage);
+
+  return Promise.all(
+    messages.map(async (message) => ({
+      ...message,
+      attachments: await signAttachments(message.attachments),
+    })),
+  );
 }
 
 export async function getTerrainMessageInbox(
@@ -242,7 +269,7 @@ export async function getTerrainMessageInbox(
   let query = supabase
     .from("office_message_recipients")
     .select(
-      "id, read_at, site_code, technician_id, technician_name, office_messages(id, title, body, target_type, target_label, target_site, sent_by_email, sent_at, office_accounts!office_messages_sent_by_user_id_fkey(full_name), office_message_attachments(id, file_name, file_size, mime_type, storage_path), office_message_recipients(id, read_at, site_code, technician_id, technician_name))",
+      "id, read_at, site_code, technician_id, technician_name, office_messages(id, title, body, target_type, target_label, target_site, archived_at, sent_by_email, sent_by_user_id, sent_at, office_accounts!office_messages_sent_by_user_id_fkey(full_name), office_message_attachments(id, file_name, file_size, mime_type, storage_path), office_message_recipients(id, read_at, site_code, technician_id, technician_name))",
     )
     .eq("technician_id", technicianId)
     .order("created_at", { ascending: false })

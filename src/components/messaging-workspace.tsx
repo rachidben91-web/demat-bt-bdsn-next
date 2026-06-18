@@ -1,4 +1,5 @@
-import { Clock3, MessageSquareMore, Paperclip, Send, UsersRound } from "lucide-react";
+import { Archive, MessageSquareMore, Paperclip, Send, Trash2, UsersRound } from "lucide-react";
+import { archiveOfficeMessageAction, deleteOfficeMessageAction } from "@/app/actions/messaging";
 import { AppShellHeader } from "@/components/app-shell-header";
 import { MessagingComposer } from "@/components/messaging-composer";
 import { ModuleIcon } from "@/components/module-icon";
@@ -84,7 +85,7 @@ export function MessagingWorkspace({
   userEmail,
 }: MessagingWorkspaceProps) {
   const theme = getModuleTheme("messagerie");
-  const { dailyAssignments, headerWeather, supportMetrics, supportSummary, technicians } = data;
+  const { dailyAssignments, headerWeather, supportMetrics, technicians } = data;
   const conversationRows = buildConversationRows(dailyAssignments);
   const activeTechnicians = Math.max(
     supportMetrics.presents,
@@ -216,6 +217,32 @@ export function MessagingWorkspace({
                                 <span className="font-semibold text-slate-600">Destinataires:</span>{" "}
                                 {summarizeNames(message.recipients.map((recipient) => recipient.technicianName))}
                               </p>
+                              {message.attachments.length > 0 ? (
+                                <div className="flex flex-wrap gap-2 pt-1">
+                                  {message.attachments.map((attachment) =>
+                                    attachment.signedUrl ? (
+                                      <a
+                                        className="inline-flex items-center gap-1 rounded-full border border-teal-200 bg-teal-50 px-2.5 py-1 text-[11px] font-semibold text-teal-700"
+                                        href={attachment.signedUrl}
+                                        key={attachment.id}
+                                        rel="noreferrer"
+                                        target="_blank"
+                                      >
+                                        <Paperclip className="h-3.5 w-3.5" />
+                                        {attachment.fileName}
+                                      </a>
+                                    ) : (
+                                      <span
+                                        className="inline-flex items-center gap-1 rounded-full border border-teal-200 bg-teal-50 px-2.5 py-1 text-[11px] font-semibold text-teal-700"
+                                        key={attachment.id}
+                                      >
+                                        <Paperclip className="h-3.5 w-3.5" />
+                                        {attachment.fileName}
+                                      </span>
+                                    ),
+                                  )}
+                                </div>
+                              ) : null}
                               {message.recipients.length > 1 ? (
                                 <>
                                   <p>
@@ -232,6 +259,28 @@ export function MessagingWorkspace({
                                   </p>
                                 </>
                               ) : null}
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <form action={archiveOfficeMessageAction}>
+                                <input name="message_id" type="hidden" value={message.id} />
+                                <button
+                                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700"
+                                  type="submit"
+                                >
+                                  <Archive className="h-3.5 w-3.5" />
+                                  Archiver
+                                </button>
+                              </form>
+                              <form action={deleteOfficeMessageAction}>
+                                <input name="message_id" type="hidden" value={message.id} />
+                                <button
+                                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                                  type="submit"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  Supprimer
+                                </button>
+                              </form>
                             </div>
                           </div>
                         </div>
@@ -268,12 +317,6 @@ export function MessagingWorkspace({
                   label: "Cibles disponibles",
                   text: `${messageTargets.length} technicien(s) avec acces terrain et filtrage manager.`,
                   tone: "text-sky-700 bg-sky-50",
-                },
-                {
-                  icon: Clock3,
-                  label: "Journee support",
-                  text: supportSummary.savedDayStatus,
-                  tone: "text-amber-700 bg-amber-50",
                 },
                 {
                   icon: Paperclip,

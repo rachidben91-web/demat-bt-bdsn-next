@@ -15,6 +15,11 @@ export type TerrainMessageReadState = {
   success: string | null;
 };
 
+type MessageOwnershipRow = {
+  id: string;
+  sent_by_user_id: string | null;
+};
+
 type RecipientCandidate = {
   account_id: string | null;
   display_name: string;
@@ -108,6 +113,39 @@ async function resolveRecipients(options: {
   return [...unique.values()].sort((left, right) =>
     left.display_name.localeCompare(right.display_name, "fr"),
   );
+}
+
+async function requireMessageOwnership(messageId: string) {
+  const auth = await requireOfficeWriteModule("messagerie");
+  const adminSupabase = createServerSupabaseAdminClient();
+
+  if (!adminSupabase) {
+    throw new Error("Client admin Supabase indisponible. Verifie la cle service role.");
+  }
+
+  const { data, error } = await adminSupabase
+    .from("office_messages")
+    .select("id, sent_by_user_id")
+    .eq("id", messageId)
+    .maybeSingle();
+
+  if (error || !data) {
+    throw new Error("Message introuvable.");
+  }
+
+  const message = data as MessageOwnershipRow;
+  const viewerOfficeAccountId = auth.officeAccount?.id ?? null;
+  const isAdmin = auth.role === "admin";
+
+  if (!isAdmin && (!viewerOfficeAccountId || message.sent_by_user_id !== viewerOfficeAccountId)) {
+    throw new Error("Tu n'as pas le droit de modifier ce message.");
+  }
+
+  return {
+    adminSupabase,
+    auth,
+    message,
+  };
 }
 
 export async function sendOfficeMessageAction(
@@ -329,4 +367,72 @@ export async function markTerrainMessagesAsReadAction(
       success: null,
     };
   }
+}
+
+export async function archiveOfficeMessageAction(formData: FormData) {
+  const messageId = String(formData.get("message_id") ?? "").trim();
+
+  if (!messageId) {
+    throw new Error("Message introuvable.");
+  }
+
+  const { adminSupabase, auth } = await requireMessageOwnership(messageId);
+  const archivedByUserId = auth.officeAccount?.id ?? null;
+
+  const { error } = await adminSupabase
+    .from("office_messages")
+    .update({
+      archived_at: new Date().toISOString(),
+      archived_by_user_id: archivedByUserId,
+    })
+    .eq("id", messageId)
+    .is("archived_at", null);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/messagerie");
+}
+
+export async function deleteOfficeMessageAction(formData: FormData) {
+  const messageId = String(formData.get("message_id") ?? "").trim();
+
+  if (!messageId) {
+    throw new Error("Message introuvable.");
+  }
+
+  const { adminSupabase } = await requireMessageOwnership(messageId);
+  const { data: attachments, error: attachmentsError } = await adminSupabase
+    .from("office_message_attachments")
+    .select("storage_path")
+    .eq("message_id", messageId);
+
+  if (attachmentsError) {
+    throw new Error(attachmentsError.message);
+  }
+
+  const storagePaths = (attachments ?? [])
+    .map((attachment) => String(attachment.storage_path ?? "").trim())
+    .filter(Boolean);
+
+  if (storagePaths.length > 0) {
+    const { error: storageError } = await adminSupabase.storage
+      .from(MESSAGE_ATTACHMENT_BUCKET)
+      .remove(storagePaths);
+
+    if (storageError) {
+      throw new Error(storageError.message);
+    }
+  }
+
+  const { error } = await adminSupabase.from("office_messages").delete().eq("id", messageId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/messagerie");
+  revalidatePath("/terrain/messages");
+  revalidatePath("/terrain");
 }
