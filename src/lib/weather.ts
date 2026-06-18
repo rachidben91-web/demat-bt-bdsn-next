@@ -75,6 +75,9 @@ type CurrentForecastResponse = {
 };
 
 type ForecastDailyResponse = {
+  current?: {
+    weather_code?: number;
+  };
   daily?: {
     time?: string[];
     weather_code?: Array<number | null>;
@@ -311,7 +314,7 @@ function buildRsfDecision(
     };
   }
 
-  if (rainProbability >= 20 || humidHours >= 1 || precipitation >= 1) {
+  if (rainProbability > 40 || humidHours >= 2 || precipitation >= 1) {
     return {
       level: "surveiller" as const,
       label: "RSF a surveiller - Humidite possible",
@@ -363,10 +366,12 @@ async function getHeaderZoneWeather(
 async function getForecastDayWeather(
   zone: (typeof SUPPORT_ZONES)[number],
   selectedDate: string,
+  todayDate: string,
 ): Promise<DayWeatherZone | null> {
   const url = new URL("https://api.open-meteo.com/v1/forecast");
   url.searchParams.set("latitude", String(zone.latitude));
   url.searchParams.set("longitude", String(zone.longitude));
+  url.searchParams.set("current", "weather_code");
   url.searchParams.set(
     "daily",
     "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum",
@@ -393,7 +398,10 @@ async function getForecastDayWeather(
   );
   const precipitationMm = roundMetric(weather.daily?.precipitation_sum?.[dayIndex] ?? null, 1);
   const rsf = buildRsfDecision(rainProbabilityPercent, humidHours, precipitationMm);
-  const code = weather.daily?.weather_code?.[dayIndex];
+  const code =
+    selectedDate === todayDate
+      ? weather.current?.weather_code ?? weather.daily?.weather_code?.[dayIndex]
+      : weather.daily?.weather_code?.[dayIndex];
 
   return {
     id: zone.id,
@@ -467,7 +475,7 @@ async function getSelectedDayZoneForecast(
   try {
     return selectedDate < todayDate
       ? await getArchiveDayWeather(zone, selectedDate)
-      : await getForecastDayWeather(zone, selectedDate);
+      : await getForecastDayWeather(zone, selectedDate, todayDate);
   } catch {
     return null;
   }
