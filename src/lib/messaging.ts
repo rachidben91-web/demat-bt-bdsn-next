@@ -33,6 +33,14 @@ export type OfficeMessageRecipient = {
   technicianName: string;
 };
 
+export type OfficeMessageReply = {
+  body: string;
+  id: string;
+  sentAt: string;
+  technicianId: string;
+  technicianName: string;
+};
+
 export type OfficeMessageSummary = {
   attachments: OfficeMessageAttachment[];
   archivedAt?: string | null;
@@ -41,6 +49,7 @@ export type OfficeMessageSummary = {
   currentRecipientId?: string | null;
   id: string;
   recipients: OfficeMessageRecipient[];
+  replies: OfficeMessageReply[];
   sentAt: string;
   sentByEmail: string;
   sentByName?: string | null;
@@ -64,6 +73,7 @@ type MessageRow = {
   office_accounts?: OfficeAccountRelationRow;
   office_message_attachments: AttachmentRow[] | null;
   office_message_recipients: RecipientRow[] | null;
+  office_message_replies?: ReplyRow[] | null;
 };
 
 type AttachmentRow = {
@@ -84,6 +94,15 @@ type RecipientRow = {
 
 type RecipientWithMessageRow = RecipientRow & {
   office_messages: MessageRow | MessageRow[] | null;
+};
+
+type ReplyRow = {
+  body: string;
+  id: string;
+  message_id?: string;
+  sent_at: string;
+  technician_id: string;
+  technician_name: string;
 };
 
 type ManagerRelationRow =
@@ -126,6 +145,16 @@ function mapRecipient(row: RecipientRow): OfficeMessageRecipient {
   };
 }
 
+function mapReply(row: ReplyRow): OfficeMessageReply {
+  return {
+    body: row.body,
+    id: row.id,
+    sentAt: row.sent_at,
+    technicianId: row.technician_id,
+    technicianName: row.technician_name,
+  };
+}
+
 function mapMessage(row: MessageRow): OfficeMessageSummary {
   const senderAccount = row.office_accounts;
   const sentByName = Array.isArray(senderAccount)
@@ -140,6 +169,7 @@ function mapMessage(row: MessageRow): OfficeMessageSummary {
     body: row.body,
     id: row.id,
     recipients: (row.office_message_recipients ?? []).map(mapRecipient),
+    replies: (row.office_message_replies ?? []).map(mapReply),
     sentAt: row.sent_at,
     sentByEmail: row.sent_by_email,
     sentByName,
@@ -227,7 +257,7 @@ export async function getRecentOfficeMessages(options?: {
   let query = supabase
     .from("office_messages")
     .select(
-      "id, title, body, target_type, target_label, target_site, archived_at, sent_by_email, sent_by_user_id, sent_at, office_accounts!office_messages_sent_by_user_id_fkey(full_name), office_message_recipients(id, read_at, site_code, technician_id, technician_name), office_message_attachments(id, file_name, file_size, mime_type, storage_path)",
+      "id, title, body, target_type, target_label, target_site, archived_at, sent_by_email, sent_by_user_id, sent_at, office_accounts!office_messages_sent_by_user_id_fkey(full_name), office_message_recipients(id, read_at, site_code, technician_id, technician_name), office_message_attachments(id, file_name, file_size, mime_type, storage_path), office_message_replies(id, technician_id, technician_name, body, sent_at)",
     )
     .order("sent_at", { ascending: false })
     .is("archived_at", null)
@@ -306,11 +336,36 @@ export async function getTerrainMessageInbox(
     [],
   );
 
+  const messageIds = [...new Set(messages.map((message) => message.id))];
+  let repliesByMessageId = new Map<string, OfficeMessageReply[]>();
+
+  if (messageIds.length > 0) {
+    const { data: repliesData, error: repliesError } = await supabase
+      .from("office_message_replies")
+      .select("id, message_id, technician_id, technician_name, body, sent_at")
+      .in("message_id", messageIds)
+      .eq("technician_id", technicianId)
+      .order("sent_at", { ascending: true });
+
+    if (!repliesError && repliesData) {
+      repliesByMessageId = (repliesData as ReplyRow[]).reduce((accumulator, row) => {
+        const currentReplies = accumulator.get(String(row.message_id ?? "")) ?? [];
+        currentReplies.push(mapReply(row));
+        accumulator.set(String(row.message_id ?? ""), currentReplies);
+        return accumulator;
+      }, new Map<string, OfficeMessageReply[]>());
+    }
+  }
+
   return Promise.all(
-    messages.map(async (message) => ({
-      ...message,
-      attachments: await signAttachments(message.attachments),
-    })),
+    messages.map(async (message) => {
+      const signedAttachments = await signAttachments(message.attachments);
+      return {
+        ...message,
+        attachments: signedAttachments,
+        replies: repliesByMessageId.get(message.id) ?? [],
+      };
+    }),
   );
 }
 

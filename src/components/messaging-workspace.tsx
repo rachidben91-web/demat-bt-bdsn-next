@@ -23,6 +23,7 @@ function formatMessageTimestamp(value: string) {
   return new Intl.DateTimeFormat("fr-FR", {
     dateStyle: "short",
     timeStyle: "short",
+    timeZone: "Europe/Paris",
   }).format(new Date(value));
 }
 
@@ -258,6 +259,33 @@ export function MessagingWorkspace({
                                     )}
                                   </p>
                                 </>
+                              ) : null}
+                              {message.replies.length > 0 ? (
+                                <div className="pt-2">
+                                  <p className="font-semibold text-slate-600">
+                                    Retours terrain ({message.replies.length})
+                                  </p>
+                                  <div className="mt-2 space-y-2">
+                                    {message.replies.map((reply) => (
+                                      <div
+                                        className="rounded-2xl border border-slate-200 bg-slate-50/90 px-3 py-2"
+                                        key={reply.id}
+                                      >
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-teal-700">
+                                            {reply.technicianName}
+                                          </p>
+                                          <p className="text-[11px] text-slate-400">
+                                            {formatMessageTimestamp(reply.sentAt)}
+                                          </p>
+                                        </div>
+                                        <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                                          {reply.body}
+                                        </p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
                               ) : null}
                             </div>
                             <div className="mt-3 flex flex-wrap gap-2">

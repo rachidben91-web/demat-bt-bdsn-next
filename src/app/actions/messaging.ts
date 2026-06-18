@@ -15,6 +15,12 @@ export type TerrainMessageReadState = {
   success: string | null;
 };
 
+export type TerrainMessageReplyState = {
+  error: string | null;
+  messageId: string | null;
+  success: string | null;
+};
+
 type MessageOwnershipRow = {
   id: string;
   sent_by_user_id: string | null;
@@ -364,6 +370,87 @@ export async function markTerrainMessagesAsReadAction(
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "Confirmation de lecture impossible.",
+      success: null,
+    };
+  }
+}
+
+export async function replyToOfficeMessageAction(
+  previousState: TerrainMessageReplyState,
+  formData: FormData,
+): Promise<TerrainMessageReplyState> {
+  void previousState;
+  const terrainAuth = await requireTerrainAccess();
+  const adminSupabase = createServerSupabaseAdminClient();
+
+  if (!adminSupabase) {
+    return {
+      error: "Client admin Supabase indisponible. Verifie la cle service role.",
+      messageId: null,
+      success: null,
+    };
+  }
+
+  try {
+    const messageId = String(formData.get("message_id") ?? "").trim();
+    const body = String(formData.get("body") ?? "").trim();
+    const officeAccountId = terrainAuth.officeAccount?.id ?? null;
+    const technicianId = terrainAuth.officeAccount?.technicianId ?? null;
+    const technicianName = terrainAuth.officeAccount?.fullName?.trim() || "Technicien";
+
+    if (!messageId) {
+      throw new Error("Message introuvable.");
+    }
+
+    if (!body) {
+      throw new Error("La reponse est obligatoire.");
+    }
+
+    if (!officeAccountId || !technicianId) {
+      throw new Error("Compte terrain introuvable.");
+    }
+
+    const { data: recipient, error: recipientError } = await adminSupabase
+      .from("office_message_recipients")
+      .select("id")
+      .eq("message_id", messageId)
+      .eq("technician_id", technicianId)
+      .eq("office_account_id", officeAccountId)
+      .maybeSingle();
+
+    if (recipientError) {
+      throw new Error(recipientError.message);
+    }
+
+    if (!recipient) {
+      throw new Error("Tu ne peux pas repondre a ce message.");
+    }
+
+    const { error } = await adminSupabase.from("office_message_replies").insert({
+      body,
+      message_id: messageId,
+      office_account_id: officeAccountId,
+      technician_id: technicianId,
+      technician_name: technicianName,
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    revalidatePath("/terrain/messages");
+    revalidatePath("/terrain");
+    revalidatePath("/messagerie");
+
+    return {
+      error: null,
+      messageId,
+      success: "Reponse envoyee au bureau.",
+    };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Envoi de la reponse impossible.",
+      messageId: String(formData.get("message_id") ?? "").trim() || null,
       success: null,
     };
   }

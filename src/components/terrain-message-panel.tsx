@@ -55,6 +55,7 @@ function formatMessageTime(value: string) {
     hour: "2-digit",
     minute: "2-digit",
     month: "2-digit",
+    timeZone: "Europe/Paris",
   }).format(new Date(value));
 }
 

@@ -60,7 +60,8 @@ export function TerrainMessagesView({
               </h2>
               <p className="mt-2 text-sm leading-7 text-slate-600">
                 Les messages du bureau s&apos;affichent ici avec leurs pieces jointes. Leur lecture
-                est confirmee automatiquement a l&apos;ouverture de cette vue.
+                est confirmee automatiquement a l&apos;ouverture de cette vue. Tu peux aussi
+                repondre directement au bureau depuis chaque message.
               </p>
             </div>
           </div>
