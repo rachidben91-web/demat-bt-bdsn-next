@@ -67,19 +67,19 @@ function getDispatchStatusMeta(status: DispatchStatus) {
       };
     case "review":
       return {
-        label: "A completer",
+        label: "À compléter",
         badgeClassName: "border-violet-200 bg-violet-50 text-violet-800",
         panelClassName: "border-violet-200 bg-[linear-gradient(180deg,#faf5ff_0%,#f3e8ff_100%)]",
       };
     case "blocked":
       return {
-        label: "Bloque O2",
+        label: "Bloqué O2",
         badgeClassName: "border-rose-200 bg-rose-50 text-rose-800",
         panelClassName: "border-rose-200 bg-[linear-gradient(180deg,#fff5f5_0%,#ffe9e9_100%)]",
       };
     case "ready":
       return {
-        label: "Pret mobile",
+        label: "Prêt mobile",
         badgeClassName: "border-emerald-200 bg-emerald-50 text-emerald-800",
         panelClassName: "border-emerald-200 bg-[linear-gradient(180deg,#f1fcf6_0%,#e8f9ef_100%)]",
       };
@@ -126,7 +126,7 @@ function getUniqueTechnicians(bts: ExtractedBt[]) {
 }
 
 function getCompactDuration(value: string) {
-  return value.replace(/\s+/g, " ").trim() || "Duree non detectee";
+  return value.replace(/\s+/g, " ").trim() || "Durée non détectée";
 }
 
 function getPublishedTimestamp(value: string | null | undefined) {
@@ -224,7 +224,7 @@ export function ReferentWorkspace({
       const secondary =
         teamMembers.length > 0
           ? `${teamMembers.length} technicien(s) sur ce groupe`
-          : "BT a redistribuer ou completer";
+          : "BT à redistribuer ou compléter";
 
       const existing = groups.get(key) ?? { label, secondary, entries: [] };
       existing.entries.push(bt);
@@ -299,7 +299,7 @@ export function ReferentWorkspace({
           headerDateTimeLabel={headerDateTimeLabel}
           isSuperAdmin={isSuperAdmin}
           role={role}
-          title="Referent"
+          title="Référent"
           userEmail={userEmail}
           weatherGeneratedAtLabel={weatherGeneratedAtLabel}
           weatherZones={weatherZones}
@@ -310,24 +310,24 @@ export function ReferentWorkspace({
             <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-blue-600">
-                  Journee chargee
+                  Journée chargée
                 </p>
                 <h2 className="mt-2 text-[1.85rem] font-semibold tracking-tight text-slate-950">
-                  {currentDay ? formatDayLabel(currentDay.dayDate) : "Aucune journee"}
+                  {currentDay ? formatDayLabel(currentDay.dayDate) : "Aucune journée"}
                 </h2>
                 <p className="mt-2 text-sm text-slate-500">
-                  Vue referent centree sur l&apos;affectation, la preparation BT par BT et la publication
-                  groupee vers mobile.
+                  Vue référent centrée sur l&apos;affectation, la préparation BT par BT et la publication
+                  groupée vers mobile.
                 </p>
               </div>
 
               <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-6">
                 {[
                   { label: "BT", value: counts.total, tone: "text-slate-950" },
-                  { label: "A affecter", value: counts.unassigned, tone: "text-amber-700" },
-                  { label: "A completer", value: counts.review, tone: "text-violet-700" },
-                  { label: "Bloques", value: counts.blocked, tone: "text-rose-700" },
-                  { label: "Prets", value: counts.ready, tone: "text-emerald-700" },
+                  { label: "À affecter", value: counts.unassigned, tone: "text-amber-700" },
+                  { label: "À compléter", value: counts.review, tone: "text-violet-700" },
+                  { label: "Bloqués", value: counts.blocked, tone: "text-rose-700" },
+                  { label: "Prêts", value: counts.ready, tone: "text-emerald-700" },
                   { label: "Site", value: currentDay?.siteCode ?? "-", tone: "text-slate-950" },
                 ].map((metric) => (
                   <article
@@ -359,7 +359,7 @@ export function ReferentWorkspace({
               <input
                 className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none placeholder:text-slate-400 focus:border-blue-400 focus:bg-white"
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Rechercher un BT, client, adresse ou equipe..."
+                placeholder="Rechercher un BT, client, adresse ou équipe..."
                 value={query}
               />
 
@@ -381,17 +381,17 @@ export function ReferentWorkspace({
                 onChange={(event) => setSelectedStatus(event.target.value as DispatchStatus | "all")}
                 value={selectedStatus}
               >
-                <option value="all">Tous les etats</option>
-                <option value="unassigned">A affecter</option>
-                <option value="assigned">Affectes</option>
-                <option value="review">A completer</option>
-                <option value="blocked">Bloques O2</option>
-                <option value="ready">Prets mobile</option>
+                <option value="all">Tous les états</option>
+                <option value="unassigned">À affecter</option>
+                <option value="assigned">Affectés</option>
+                <option value="review">À compléter</option>
+                <option value="blocked">Bloqués O2</option>
+                <option value="ready">Prêts mobile</option>
               </select>
 
               <div className="flex flex-wrap justify-end gap-2">
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
-                  {counts.ready}/{counts.total} BT prets mobile
+                  {counts.ready}/{counts.total} BT prêts mobile
                 </div>
               </div>
             </div>
@@ -444,7 +444,7 @@ export function ReferentWorkspace({
                       ? `${blockedBtCount} BT en attente de validation O2 bloquent cette publication mobile.`
                       : readyBtCount === group.entries.length
                         ? null
-                        : `Preparation requise sur ${group.entries.length - readyBtCount} BT avant publication mobile.`;
+                        : `Préparation requise sur ${group.entries.length - readyBtCount} BT avant publication mobile.`;
                   const groupBtPayload = group.entries.map((entry) => ({
                     btEntryId: entry.entryId ?? null,
                     btId: entry.id,
@@ -553,10 +553,10 @@ export function ReferentWorkspace({
 
                               <div className="space-y-3 px-3.5 py-3">
                                 <div className="grid gap-x-3 gap-y-2 text-[11px] text-slate-700 sm:grid-cols-2">
-                                  <div>Date : {bt.datePrevue || "Date non detectee"}</div>
-                                  <div>Duree : {getCompactDuration(bt.duree)}</div>
-                                  <div>Client : {bt.client || "Client non detecte"}</div>
-                                  <div>AT : {bt.atNum || "AT non detecte"}</div>
+                                  <div>Date : {bt.datePrevue || "Date non détectée"}</div>
+                                  <div>Durée : {getCompactDuration(bt.duree)}</div>
+                                  <div>Client : {bt.client || "Client non détecté"}</div>
+                                  <div>AT : {bt.atNum || "AT non détecté"}</div>
                                 </div>
 
                                 <div className="rounded-[16px] border border-slate-200 bg-slate-50/80 px-3 py-2.5">
@@ -594,7 +594,7 @@ export function ReferentWorkspace({
                                         ) : null}
                                       </>
                                     ) : (
-                                      <span className="text-[11px] text-slate-600">Aucune affectation definie</span>
+                                      <span className="text-[11px] text-slate-600">Aucune affectation définie</span>
                                     )}
                                   </div>
                                   {showOriginalTeam ? (

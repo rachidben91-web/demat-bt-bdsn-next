@@ -1,5 +1,6 @@
+import type { OfficeMessageSummary } from "@/lib/messaging";
 import type { MobileDispatchItem } from "@/lib/mobile-dispatch";
-import { compactText, departureInstructionLabel } from "@/lib/terrain-ui";
+import { departureInstructionLabel } from "@/lib/terrain-ui";
 
 type TerrainTechnician = {
   managerName: string;
@@ -48,67 +49,62 @@ function circleClassName(tone: TerrainMessageItem["tone"]) {
   return "bg-[#ddeedb] text-[#325c31]";
 }
 
+function formatMessageTime(value: string) {
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "2-digit",
+  }).format(new Date(value));
+}
+
 export function buildTerrainMessageItems(
   mobileDispatch: MobileDispatchItem | null,
   technician: TerrainTechnician | null,
-) {
-  const siteLabel = mobileDispatch?.siteCode ?? technician?.site ?? "VLG";
-  const managerName = mobileDispatch?.managerName ?? technician?.managerName ?? "Chef d'équipe";
-  const firstBtWithObservation =
-    mobileDispatch?.btPayload.find((bt) => compactText(bt.observations)) ?? null;
-  const firstBtWithRisk =
-    mobileDispatch?.btPayload.find((bt) => compactText(bt.analyseDesRisques)) ?? null;
+  officeMessages: OfficeMessageSummary[] = [],
+): TerrainMessageItem[] {
+  if (officeMessages.length > 0) {
+    return officeMessages.slice(0, 4).map((message) => ({
+      id: message.id,
+      initials:
+        buildInitials(message.sentByName || message.sentByEmail.split("@")[0] || "BU") || "BU",
+      preview: `Par ${message.sentByName || message.sentByEmail} - ${message.body
+        .replace(/\s+/g, " ")
+        .trim()}`,
+      timeLabel: formatMessageTime(message.sentAt),
+      title: message.title,
+      tone: message.currentReadAt ? "mint" : "blue",
+      unreadCount: message.currentReadAt ? undefined : 1,
+    }));
+  }
 
-  const items: TerrainMessageItem[] = [
+  if (mobileDispatch) {
+    return [
+      {
+        id: "dispatch-summary",
+        initials: "BU",
+        preview: `${departureInstructionLabel(mobileDispatch.departureInstruction)} avant ${
+          mobileDispatch.btPayload[0]
+            ? mobileDispatch.btPayload[0].duree.match(/\d{2}h\d{2}/)?.[0] ?? "depart"
+            : "depart"
+        }.`,
+        timeLabel: formatMessageTime(mobileDispatch.publishedAt),
+        title: "Publication bureau",
+        tone: "blue" as const,
+      },
+    ];
+  }
+
+  return [
     {
-      id: "office",
-      initials: "BU",
-      preview: mobileDispatch
-        ? `${departureInstructionLabel(mobileDispatch.departureInstruction)} avant ${
-            mobileDispatch.btPayload[0]
-              ? mobileDispatch.btPayload[0].duree.match(/\d{2}h\d{2}/)?.[0] ?? "départ"
-              : "départ"
-          }.`
-        : "Le bureau transmettra ici les consignes de départ.",
-      timeLabel: "08h47",
-      title: `Bureau ${siteLabel}`,
-      tone: "blue",
-      unreadCount: 2,
-    },
-    {
-      id: "manager",
-      initials: buildInitials(managerName) || "CE",
-      preview: "OK reçu, on se retrouve à l'agence si besoin.",
-      timeLabel: "08h12",
-      title: managerName,
-      tone: "mint",
+      id: "empty",
+      initials: buildInitials(technician?.managerName ?? "Bureau") || "BU",
+      preview: "Aucun message disponible pour le moment.",
+      timeLabel: "-",
+      title: "Messagerie bureau",
+      tone: "sage" as const,
     },
   ];
-
-  if (firstBtWithObservation) {
-    items.push({
-      id: "bt-observation",
-      initials: "BT",
-      preview: compactText(firstBtWithObservation.observations),
-      timeLabel: "Hier",
-      title: `Intervention ${firstBtWithObservation.btId}`,
-      tone: "sand",
-      unreadCount: 1,
-    });
-  }
-
-  if (firstBtWithRisk) {
-    items.push({
-      id: "safety",
-      initials: "RS",
-      preview: `Rappel : ${compactText(firstBtWithRisk.analyseDesRisques)}`,
-      timeLabel: "Hier",
-      title: "Référent sécurité",
-      tone: "sage",
-    });
-  }
-
-  return items.slice(0, 4);
 }
 
 export function TerrainMessagePanel({
@@ -156,10 +152,10 @@ export function TerrainMessagePanel({
       {showComposer ? (
         <div className="mt-3 rounded-[22px] border border-dashed border-slate-200 bg-slate-50/90 p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
-            + Nouveau message
+            Messagerie
           </p>
           <div className="mt-3 rounded-[16px] border border-slate-200 bg-white px-4 py-3 text-base text-slate-400">
-            Écrire au bureau ou à l&apos;équipe...
+            Les nouveaux messages du bureau apparaitront ici.
           </div>
         </div>
       ) : null}

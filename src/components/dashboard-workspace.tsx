@@ -73,6 +73,17 @@ export function DashboardWorkspace(props: DashboardWorkspaceProps) {
       visible: allowedModules.includes("import_pdf") || isSuperAdmin,
     },
     {
+      id: "messagerie",
+      href: "/messagerie",
+      title: "Messagerie",
+      description: "Suivi des conversations bureau-terrain, alertes et messages rattaches aux tournees.",
+      iconModuleId: "messagerie" as const,
+      tone: "from-teal-50 via-white to-teal-100/70",
+      border: "border-teal-200/80",
+      accent: "text-teal-700",
+      visible: allowedModules.includes("messagerie") || isSuperAdmin,
+    },
+    {
       id: "admin",
       href: "/admin/techniciens",
       title: "Admin tech",

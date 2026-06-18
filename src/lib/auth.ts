@@ -17,6 +17,7 @@ const READABLE_OFFICE_MODULES_IN_ORDER = [
   "referent",
   "brief",
   "import_pdf",
+  "messagerie",
   "technicians_admin",
   "office_access",
 ] as const satisfies readonly OfficeModuleKey[];
@@ -27,6 +28,7 @@ const OFFICE_MODULE_DEFAULT_PATHS: Record<OfficeModuleKey, string> = {
   referent: "/referent",
   brief: "/brief",
   import_pdf: "/import-pdf",
+  messagerie: "/messagerie",
   technicians_admin: "/admin/techniciens",
   office_access: "/admin/acces",
 };

@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import packageJson from "../../package.json";
 import { getModuleTheme, type AppModuleId } from "@/lib/module-theme";
 import { ModuleIcon } from "@/components/module-icon";
 import { LogoutButton } from "@/components/logout-button";
@@ -28,6 +29,7 @@ const moduleItems = [
   { id: "referent", label: "Référent", href: "/referent", moduleKey: "referent" },
   { id: "brief", label: "Brief", href: "/brief", moduleKey: "brief" },
   { id: "import", label: "Import PDF", href: "/import-pdf", moduleKey: "import_pdf" },
+  { id: "messagerie", label: "Messagerie", href: "/messagerie", moduleKey: "messagerie" },
   { id: "admin", label: "Admin tech", href: "/admin/techniciens", moduleKey: "technicians_admin" },
   { id: "access", label: "Accès", href: "/admin/acces", moduleKey: "office_access" },
 ] as const;
@@ -38,7 +40,7 @@ function cx(...parts: Array<string | false | null | undefined>) {
 
 function formatRoleLabel(role: string | null) {
   if (!role) {
-    return "Role non defini";
+    return "Rôle non défini";
   }
 
   return role
@@ -77,6 +79,7 @@ export function AppShellHeader({
   weatherZones = [],
 }: AppShellHeaderProps) {
   const activeTheme = getModuleTheme(activeModule);
+  const appVersion = `v${packageJson.version}`;
   const firstName = extractFirstName(userEmail);
   const roleLabel = formatRoleLabel(role);
   const hasHeaderStatus = Boolean(headerDateTimeLabel || weatherGeneratedAtLabel || weatherZones.length > 0);
@@ -167,6 +170,7 @@ export function AppShellHeader({
                   <p className="mt-1 text-[10px] uppercase tracking-[0.26em] text-slate-400">
                     {roleLabel}
                   </p>
+                  <p className="mt-1 text-[10px] font-medium text-slate-400">{appVersion}</p>
                 </div>
               </div>
               <LogoutButton />

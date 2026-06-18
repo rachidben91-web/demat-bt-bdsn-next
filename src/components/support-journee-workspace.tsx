@@ -42,11 +42,11 @@ function statusTone(status: string) {
 }
 
 function metricTone(label: string) {
-  if (label.startsWith("Presents")) {
+  if (label.startsWith("Présents")) {
     return "bg-emerald-50 text-emerald-700";
   }
 
-  if (label.startsWith("Greve")) {
+  if (label.startsWith("Grève")) {
     return "bg-amber-50 text-amber-700";
   }
 
@@ -392,8 +392,8 @@ export function SupportJourneeWorkspace({
     saveState === "saving"
       ? "Enregistrement en cours"
       : saveState === "dirty"
-        ? "Modifications non enregistrees"
-        : "Modifications enregistrees";
+        ? "Modifications non enregistrées"
+        : "Modifications enregistrées";
   const tableHeaderTop = 104;
   const [tableHeaderFrame, setTableHeaderFrame] = useState({
     isPinned: false,
@@ -716,7 +716,7 @@ export function SupportJourneeWorkspace({
       setSavedGlobalObservation(currentObservation);
 
       if (trigger === "auto") {
-        setStatusMessage("Modifications enregistrees automatiquement.");
+        setStatusMessage("Modifications enregistrées automatiquement.");
       }
 
       return true;
@@ -1148,11 +1148,11 @@ export function SupportJourneeWorkspace({
 
             <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
               <span className="h-2 w-2 rounded-full bg-rose-500" />
-              <span>Journee initialisee vide</span>
+              <span>Journée initialisée vide</span>
             </div>
             <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
               <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              <span>Journee avec donnees</span>
+              <span>Journée avec données</span>
             </div>
           </div>
         ) : null}
@@ -1175,8 +1175,8 @@ export function SupportJourneeWorkspace({
               width={118}
             />
             <div>
-              <p className="support-print-kicker">Support journee</p>
-              <h1>Liste agents / activites</h1>
+              <p className="support-print-kicker">Support journée</p>
+              <h1>Liste agents / activités</h1>
               <p>
                 {supportSummary.dateLabel} - {supportSummary.weekLabel}
               </p>
@@ -1184,9 +1184,9 @@ export function SupportJourneeWorkspace({
           </div>
           <div className="support-print-meta">
             <p>Agents : {assignments.length}</p>
-            <p>Presents : {liveMetrics.presents}</p>
+            <p>Présents : {liveMetrics.presents}</p>
             <p>Absents : {liveMetrics.absents}</p>
-            <p>Greve : {liveMetrics.greve}</p>
+            <p>Grève : {liveMetrics.greve}</p>
             <p>Genere le {printGeneratedAt}</p>
           </div>
         </header>
@@ -1435,7 +1435,7 @@ export function SupportJourneeWorkspace({
                     <input
                       className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none placeholder:text-slate-400 focus:border-blue-400 focus:bg-white"
                       onChange={(event) => setSearchTerm(event.target.value)}
-                      placeholder="Rechercher agent, activite, observation..."
+                      placeholder="Rechercher agent, activité, observation..."
                       value={searchTerm}
                     />
                     <select
@@ -1982,7 +1982,7 @@ export function SupportJourneeWorkspace({
                           label: event.target.value,
                         }))
                       }
-                      placeholder="Nom nouvelle activite..."
+                      placeholder="Nom nouvelle activité..."
                       value={newActivity.label}
                     />
                     <label
@@ -2011,9 +2011,9 @@ export function SupportJourneeWorkspace({
                       }
                       value={newActivity.status}
                       >
-                      <option value="Present">Present</option>
+                      <option value="Present">Présent</option>
                       <option value="Absent">Absent</option>
-                      <option value="Greve">Greve</option>
+                      <option value="Greve">Grève</option>
                     </select>
                     <label className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700">
                       <input
@@ -2031,7 +2031,7 @@ export function SupportJourneeWorkspace({
                         }
                         type="checkbox"
                       />
-                      Afficher dans le controle
+                      Afficher dans le contrôle
                     </label>
                     <input
                       className="w-[140px] rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none placeholder:text-slate-400 focus:border-blue-400 disabled:bg-slate-100 disabled:text-slate-400"
@@ -2064,7 +2064,7 @@ export function SupportJourneeWorkspace({
                 <input
                   className="min-w-[260px] flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none placeholder:text-slate-400 focus:border-blue-400"
                   onChange={(event) => setActivitySearch(event.target.value)}
-                  placeholder="Rechercher activite..."
+                  placeholder="Rechercher activité..."
                   value={activitySearch}
                 />
                 <button
@@ -2072,7 +2072,7 @@ export function SupportJourneeWorkspace({
                   onClick={resetActivityFilters}
                   type="button"
                 >
-                  Reinitialiser
+                  Réinitialiser
                 </button>
               </section>
 
@@ -2128,9 +2128,9 @@ export function SupportJourneeWorkspace({
                               }
                               value={editingActivity.status}
                             >
-                              <option value="Present">Present</option>
+                              <option value="Present">Présent</option>
                               <option value="Absent">Absent</option>
-                              <option value="Greve">Greve</option>
+                              <option value="Greve">Grève</option>
                             </select>
                           </div>
                           <div className="flex flex-wrap items-center gap-3">
@@ -2154,7 +2154,7 @@ export function SupportJourneeWorkspace({
                                 }
                                 type="checkbox"
                               />
-                              Afficher dans le controle
+                              Afficher dans le contrôle
                             </label>
                             <input
                               className="w-[140px] rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none placeholder:text-slate-400 focus:border-blue-400 disabled:bg-slate-100 disabled:text-slate-400"
@@ -2255,7 +2255,7 @@ export function SupportJourneeWorkspace({
                 {[
                   { value: String(supportMetrics.totalDays), label: "Jours saisis" },
                   { value: String(supportMetrics.totalRows), label: "Lignes totales" },
-                  { value: supportMetrics.topActivity, label: "Top activite" },
+                  { value: supportMetrics.topActivity, label: "Top activité" },
                 ].map((item) => (
                   <article
                     key={item.label}
@@ -2308,7 +2308,7 @@ export function SupportJourneeWorkspace({
                   onClick={resetHistoryFilters}
                   type="button"
                 >
-                  Reinitialiser
+                  Réinitialiser
                 </button>
               </section>
 
@@ -2357,7 +2357,7 @@ export function SupportJourneeWorkspace({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-4">
           <div className="w-full max-w-lg rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_30px_90px_rgba(15,23,42,0.22)]">
             <h3 className="text-xl font-semibold text-slate-950">
-              Des modifications ne sont pas encore enregistrees
+              Des modifications ne sont pas encore enregistrées
             </h3>
             <p className="mt-3 text-sm leading-6 text-slate-600">
               Vous pouvez poursuivre sans sauvegarder, ou enregistrer vos modifications avant

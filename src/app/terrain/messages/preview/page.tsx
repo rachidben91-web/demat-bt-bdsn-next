@@ -16,6 +16,7 @@ export default function TerrainMessagesPreviewPage() {
       currentDateLabel={previewCurrentDateLabel}
       displayName="BENALLOU Radouane"
       mobileDispatch={previewDispatch}
+      officeMessages={[]}
       technician={previewTechnician}
       terrainRole="technician"
       userEmail="radouane@dmt.vlg"

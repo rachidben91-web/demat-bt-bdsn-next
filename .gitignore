@@ -31,6 +31,8 @@ yarn-error.log*
 .pnpm-debug.log*
 .next-dev.log
 .next-dev.err
+.next-dev-current.log
+.next-dev-current.err
 .codex-*.png
 
 # env files (can opt-in for committing if needed)

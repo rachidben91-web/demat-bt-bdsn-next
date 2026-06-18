@@ -106,13 +106,13 @@ export function ImportPdfWorkspace({
         setAnalysis(result);
         setStatus(
           result.bts.length > 0
-            ? `${result.bts.length} BT detecte(s) dans ${result.pageCount} page(s).`
-            : "Aucun BT detecte. Le PDF ne correspond peut-etre pas au gabarit attendu.",
+            ? `${result.bts.length} BT détecté(s) dans ${result.pageCount} page(s).`
+            : "Aucun BT détecté. Le PDF ne correspond peut-être pas au gabarit attendu.",
         );
       } catch (caughtError) {
         setAnalysis(null);
         setError(caughtError instanceof Error ? caughtError.message : "Analyse impossible.");
-        setStatus("Le PDF n'a pas pu etre analyse.");
+        setStatus("Le PDF n'a pas pu être analysé.");
       }
     });
   }
@@ -145,7 +145,7 @@ export function ImportPdfWorkspace({
             throw uploadError;
           }
 
-          setStatus("Preparation des PDFs derives par BT...");
+          setStatus("Préparation des PDF dérivés par BT...");
           const derivedPdfs = await createDerivedBtPdfFiles(selectedFile, analysis, setStatus);
           const derivedPrefix = `VLG/${analysis.importedDayIso}/bt`;
           const { data: existingDerivedFiles, error: listDerivedError } = await supabase.storage
@@ -209,18 +209,18 @@ export function ImportPdfWorkspace({
           };
         }
 
-        setStatus("Enregistrement de la journee...");
+        setStatus("Enregistrement de la journée...");
         const result = await saveBtImportDayAction(analysisToSave, storagePath);
         setSaveMessage(result.message);
 
         if (result.ok) {
           setSavedDayDate(result.dayDate ?? null);
           setAnalysis(analysisToSave);
-          setStatus("Journee enregistree avec ses dossiers BT derives.");
+          setStatus("Journée enregistrée avec ses dossiers BT dérivés.");
         }
       } catch (caughtError) {
         setError(caughtError instanceof Error ? caughtError.message : "Sauvegarde impossible.");
-        setStatus("La journee n'a pas pu etre enregistree.");
+        setStatus("La journée n'a pas pu être enregistrée.");
       }
     });
   }
@@ -248,7 +248,7 @@ export function ImportPdfWorkspace({
                 Importer un PDF du jour
               </h2>
               <p className="mt-3 text-sm leading-6 text-slate-300">
-                Cette premiere version reconnait les BT, relie les pages suivantes comme pieces
+                Cette première version reconnaît les BT, relie les pages suivantes comme pièces
                 jointes et classe leurs types principaux.
               </p>
 
@@ -281,7 +281,7 @@ export function ImportPdfWorkspace({
                   onClick={handleSaveDay}
                   type="button"
                 >
-                  Enregistrer cette journee
+                  Enregistrer cette journée
                 </button>
                 <Link
                   className={cx(
@@ -301,7 +301,7 @@ export function ImportPdfWorkspace({
               <section className="grid gap-4 md:grid-cols-3">
                 {[
                   {
-                    label: "BT detectes",
+                    label: "BT détectés",
                     value: String(analysis?.bts.length ?? 0),
                   },
                   {
@@ -329,10 +329,10 @@ export function ImportPdfWorkspace({
 
               <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm">
                 <p className="text-sm font-semibold uppercase tracking-[0.24em] text-blue-600">
-                  Apercu du fichier
+                  Aperçu du fichier
                 </p>
                 <h3 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
-                  {analysis?.pdfName ?? "Aucun fichier analyse"}
+                  {analysis?.pdfName ?? "Aucun fichier analysé"}
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-slate-500">
                   {formatDateLabel(analysis?.importedDayIso ?? null)}
@@ -357,7 +357,7 @@ export function ImportPdfWorkspace({
                             </span>
                             {bt.derivedPdfStoragePath ? (
                               <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                                PDF derive {bt.derivedPdfPageCount ?? bt.docs.length} page(s)
+                                PDF dérivé {bt.derivedPdfPageCount ?? bt.docs.length} page(s)
                               </span>
                             ) : null}
                           </div>
@@ -368,7 +368,7 @@ export function ImportPdfWorkspace({
 
                         <div className="grid gap-2 text-sm text-slate-500 sm:grid-cols-2 xl:min-w-[420px]">
                           <div>
-                            <span className="font-semibold text-slate-700">Date prevue :</span>{" "}
+                            <span className="font-semibold text-slate-700">Date prévue :</span>{" "}
                             {bt.datePrevue || "—"}
                           </div>
                           <div>
@@ -380,7 +380,7 @@ export function ImportPdfWorkspace({
                             {bt.client || "—"}
                           </div>
                           <div>
-                            <span className="font-semibold text-slate-700">Duree :</span>{" "}
+                            <span className="font-semibold text-slate-700">Durée :</span>{" "}
                             {bt.duree || "—"}
                           </div>
                         </div>
@@ -397,7 +397,7 @@ export function ImportPdfWorkspace({
                         </div>
                         <div className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-4">
                           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                            Equipe detectee
+                            Équipe détectée
                           </p>
                           <div className="mt-2 flex flex-wrap gap-2">
                             {bt.team.length ? (
@@ -410,7 +410,7 @@ export function ImportPdfWorkspace({
                                 </span>
                               ))
                             ) : (
-                              <span className="text-sm text-slate-500">Aucune equipe reconnue</span>
+                              <span className="text-sm text-slate-500">Aucune équipe reconnue</span>
                             )}
                           </div>
                         </div>
@@ -418,7 +418,7 @@ export function ImportPdfWorkspace({
 
                       <div className="mt-5 rounded-[22px] border border-slate-200 bg-white p-4">
                         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                          Documents rattaches
+                          Documents rattachés
                         </p>
                         <div className="mt-3 flex flex-wrap gap-2">
                           {bt.docs.map((doc) => (
@@ -438,7 +438,7 @@ export function ImportPdfWorkspace({
                   ))
                 ) : (
                   <article className="rounded-[26px] border border-dashed border-slate-300 bg-white/80 p-8 text-center text-sm text-slate-500 shadow-sm">
-                    L&apos;aperçu des BT apparaitra ici apres analyse d&apos;un PDF.
+                    L&apos;aperçu des BT apparaîtra ici après analyse d&apos;un PDF.
                   </article>
                 )}
               </section>

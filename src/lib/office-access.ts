@@ -28,6 +28,7 @@ export const OFFICE_MODULE_KEYS = [
   "referent",
   "brief",
   "import_pdf",
+  "messagerie",
   "technicians_admin",
   "office_access",
 ] as const;
@@ -55,6 +56,10 @@ export const OFFICE_MODULE_META: Record<
   import_pdf: {
     label: "Import PDF",
     description: "Chargement du PDF journalier et préparation des BT du jour.",
+  },
+  messagerie: {
+    label: "Messagerie",
+    description: "Conversations bureau-terrain et suivi des messages d'equipe.",
   },
   technicians_admin: {
     label: "Admin tech",
@@ -165,6 +170,7 @@ export function createEmptyOfficeModulePermissions(): OfficeModulePermissions {
     referent: "none",
     brief: "none",
     import_pdf: "none",
+    messagerie: "none",
     technicians_admin: "none",
     office_access: "none",
   };
@@ -180,6 +186,7 @@ export function createRolePresetPermissions(
       referent: "write",
       brief: "write",
       import_pdf: "write",
+      messagerie: "write",
       technicians_admin: "write",
       office_access: "write",
     };
@@ -192,6 +199,7 @@ export function createRolePresetPermissions(
       referent: "write",
       brief: "read",
       import_pdf: "none",
+      messagerie: "write",
       technicians_admin: "read",
       office_access: "none",
     };
@@ -204,6 +212,7 @@ export function createRolePresetPermissions(
       referent: "read",
       brief: "read",
       import_pdf: "none",
+      messagerie: "read",
       technicians_admin: "read",
       office_access: "none",
     };
@@ -232,7 +241,8 @@ export function normalizeOfficeModulePermissions(
       (moduleKey === "dashboard" ||
         moduleKey === "referent" ||
         moduleKey === "brief" ||
-        moduleKey === "import_pdf") &&
+        moduleKey === "import_pdf" ||
+        moduleKey === "messagerie") &&
       legacySupportPermission !== "none"
     ) {
       normalized[moduleKey] = legacySupportPermission;

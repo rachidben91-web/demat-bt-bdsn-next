@@ -5,6 +5,7 @@ import {
   buildTerrainMessageItems,
   TerrainMessagePanel,
 } from "@/components/terrain-message-panel";
+import type { OfficeMessageSummary } from "@/lib/messaging";
 import type { MobileDispatchItem } from "@/lib/mobile-dispatch";
 import { TERRAIN_ROLE_LABELS, type TerrainRole } from "@/lib/office-access";
 import {
@@ -26,6 +27,7 @@ type TerrainHubProps = {
   detailHref: string;
   displayName: string;
   mobileDispatch: MobileDispatchItem | null;
+  officeMessages: OfficeMessageSummary[];
   technician: TerrainTechnician | null;
   terrainRole: TerrainRole;
   userEmail: string | null;
@@ -37,12 +39,13 @@ export function TerrainHub({
   detailHref,
   displayName,
   mobileDispatch,
+  officeMessages,
   technician,
   terrainRole,
   userEmail,
 }: TerrainHubProps) {
   const dispatchStats = mobileDispatch ? buildDispatchStats(mobileDispatch.btPayload) : null;
-  const inboxItems = buildTerrainMessageItems(mobileDispatch, technician);
+  const inboxItems = buildTerrainMessageItems(mobileDispatch, technician, officeMessages);
   const missionDateLabel = mobileDispatch ? formatMissionDate(mobileDispatch.missionDate) : null;
   const isMissionToday = mobileDispatch ? mobileDispatch.missionDate === currentDateKey : false;
   const site = mobileDispatch?.siteCode ?? technician?.site ?? null;

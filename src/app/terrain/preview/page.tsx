@@ -19,6 +19,7 @@ export default function TerrainPreviewPage() {
       detailHref="/terrain/journee/preview"
       displayName="BENALLOU Radouane"
       mobileDispatch={previewDispatch}
+      officeMessages={[]}
       technician={previewTechnician}
       terrainRole="technician"
       userEmail="radouane@dmt.vlg"

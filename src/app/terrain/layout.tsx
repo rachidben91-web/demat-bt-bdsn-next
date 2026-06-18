@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { TerrainMobileChrome } from "@/components/terrain-mobile-chrome";
 import { TerrainPwaRegistration } from "@/components/terrain-pwa-registration";
+import { getCurrentAuthContext } from "@/lib/auth";
+import { getUnreadTerrainMessageCount } from "@/lib/messaging";
 
 export const metadata: Metadata = {
   title: {
@@ -26,15 +28,26 @@ export const viewport: Viewport = {
   colorScheme: "light",
 };
 
-export default function TerrainLayout({
+export default async function TerrainLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const auth = await getCurrentAuthContext();
+  const messageBadgeCount =
+    auth.officeAccount?.canAccessTerrainApp && auth.officeAccount.technicianId
+      ? await getUnreadTerrainMessageCount(
+          auth.officeAccount.technicianId,
+          auth.officeAccount.id,
+        )
+      : 0;
+
   return (
     <>
       <TerrainPwaRegistration />
-      <TerrainMobileChrome>{children}</TerrainMobileChrome>
+      <TerrainMobileChrome messageBadgeCount={messageBadgeCount}>
+        {children}
+      </TerrainMobileChrome>
     </>
   );
 }

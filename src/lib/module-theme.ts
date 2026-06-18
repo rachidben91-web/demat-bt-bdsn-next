@@ -1,4 +1,12 @@
-export type AppModuleId = "dashboard" | "support" | "admin" | "access" | "referent" | "import" | "brief";
+export type AppModuleId =
+  | "dashboard"
+  | "support"
+  | "admin"
+  | "access"
+  | "referent"
+  | "import"
+  | "brief"
+  | "messagerie";
 
 type ModuleTheme = {
   activeNavClassName: string;
@@ -102,6 +110,19 @@ export const moduleThemeMap: Record<AppModuleId, ModuleTheme> = {
     pageBackgroundClassName:
       "bg-[radial-gradient(circle_at_top_left,#fff1f2_0%,#fff7ed_28%,#f6f8fc_58%,#eef3f8_100%)]",
     tintClassName: "text-rose-600",
+  },
+  messagerie: {
+    activeNavClassName:
+      "border-teal-200/70 bg-[linear-gradient(180deg,#f0fdfa_0%,#ccfbf1_100%)] text-teal-950 shadow-[0_16px_32px_rgba(20,184,166,0.18)]",
+    activeNavIconClassName: "bg-teal-600 text-white shadow-[0_8px_18px_rgba(20,184,166,0.28)]",
+    headerBadgeClassName: "border-teal-200/40 bg-teal-400/12 text-teal-100",
+    headerClassName:
+      "bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.16),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.96)_0%,rgba(240,253,250,0.98)_54%,rgba(232,246,244,0.98)_100%)]",
+    icon: "MSG",
+    label: "Messagerie",
+    pageBackgroundClassName:
+      "bg-[radial-gradient(circle_at_top_left,#ccfbf1_0%,#f0fdfa_28%,#eef4fb_58%,#e7edf6_100%)]",
+    tintClassName: "text-teal-600",
   },
 };
 

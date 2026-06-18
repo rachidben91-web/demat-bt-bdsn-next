@@ -4,6 +4,7 @@ import {
   Gauge,
   KeyRound,
   LayoutGrid,
+  MessageSquareMore,
   ShieldCheck,
   UserRound,
 } from "lucide-react";
@@ -31,6 +32,8 @@ export function ModuleIcon({
       return <FileText className={className} strokeWidth={strokeWidth} />;
     case "import":
       return <FileUp className={className} strokeWidth={strokeWidth} />;
+    case "messagerie":
+      return <MessageSquareMore className={className} strokeWidth={strokeWidth} />;
     case "admin":
       return <ShieldCheck className={className} strokeWidth={strokeWidth} />;
     case "access":

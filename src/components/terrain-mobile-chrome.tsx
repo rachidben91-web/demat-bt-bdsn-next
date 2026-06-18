@@ -11,6 +11,7 @@ import {
 
 type TerrainMobileChromeProps = {
   children: React.ReactNode;
+  messageBadgeCount?: number;
 };
 
 type NavItem = {
@@ -57,7 +58,7 @@ function resolveTerrainHref(pathname: string, section: "home" | "bt" | "messages
   return "/terrain/infos";
 }
 
-function buildNavItems(pathname: string): NavItem[] {
+function buildNavItems(pathname: string, messageBadgeCount?: number): NavItem[] {
   return [
     {
       href: resolveTerrainHref(pathname, "home"),
@@ -77,7 +78,7 @@ function buildNavItems(pathname: string): NavItem[] {
       icon: MessageSquareText,
       isActive: pathname.startsWith("/terrain/messages"),
       label: "Messages",
-      badge: 3,
+      badge: messageBadgeCount && messageBadgeCount > 0 ? messageBadgeCount : undefined,
     },
     {
       href: resolveTerrainHref(pathname, "infos"),
@@ -88,10 +89,10 @@ function buildNavItems(pathname: string): NavItem[] {
   ];
 }
 
-export function TerrainMobileChrome({ children }: TerrainMobileChromeProps) {
+export function TerrainMobileChrome({ children, messageBadgeCount }: TerrainMobileChromeProps) {
   const pathname = usePathname() ?? "/terrain";
   const showNav = !pathname.startsWith("/terrain/login");
-  const navItems = buildNavItems(pathname);
+  const navItems = buildNavItems(pathname, messageBadgeCount);
 
   return (
     <div className={showNav ? "pb-[calc(6.75rem+env(safe-area-inset-bottom))]" : undefined}>

@@ -44,7 +44,7 @@ export function ReferentPrepareBtButton({
         disabled={isDisabled}
         type="submit"
       >
-        {isPrepared ? "Pret mobile" : pending ? "Preparation..." : "Preparer l'envoi"}
+        {isPrepared ? "Prêt mobile" : pending ? "Préparation..." : "Préparer l'envoi"}
       </button>
 
       {state.error ? (

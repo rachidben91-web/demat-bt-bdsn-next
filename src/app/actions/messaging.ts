@@ -1,0 +1,332 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { requireOfficeWriteModule, requireTerrainAccess } from "@/lib/auth";
+import { MESSAGE_ATTACHMENT_BUCKET, type MessagingTargetType } from "@/lib/messaging";
+import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
+
+export type MessagingActionState = {
+  error: string | null;
+  success: string | null;
+};
+
+export type TerrainMessageReadState = {
+  error: string | null;
+  success: string | null;
+};
+
+type RecipientCandidate = {
+  account_id: string | null;
+  display_name: string;
+  site: string | null;
+  technician_id: string;
+};
+
+const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
+
+function normalizeTargetType(value: FormDataEntryValue | null): MessagingTargetType {
+  const text = String(value ?? "").trim();
+
+  if (text === "site" || text === "manager" || text === "technician") {
+    return text;
+  }
+
+  return "agency";
+}
+
+function safeFileName(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 120) || "piece-jointe";
+}
+
+async function resolveRecipients(options: {
+  adminSupabase: NonNullable<ReturnType<typeof createServerSupabaseAdminClient>>;
+  managerId: string | null;
+  selectedTechnicianIds: string[];
+  site: string | null;
+  targetType: MessagingTargetType;
+}) {
+  let query = options.adminSupabase
+    .from("office_accounts")
+    .select("id, technician_id, technicians(id, display_name, site, manager_id, managers(name))")
+    .eq("account_status", "active")
+    .eq("can_access_terrain_app", true)
+    .not("technician_id", "is", null);
+
+  if (options.targetType === "technician") {
+    if (options.selectedTechnicianIds.length === 0) {
+      throw new Error("Selectionne au moins un technicien.");
+    }
+
+    query = query.in("technician_id", options.selectedTechnicianIds);
+  }
+
+  if (options.targetType === "manager") {
+    if (!options.managerId) {
+      throw new Error("Selectionne un manager.");
+    }
+
+    query = query.eq("technicians.manager_id", options.managerId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const candidates = (data ?? []).flatMap((row) => {
+    const technician = Array.isArray(row.technicians) ? row.technicians[0] : row.technicians;
+
+    if (!technician?.id) {
+      return [];
+    }
+
+    return [
+      {
+        account_id: typeof row.id === "string" ? row.id : null,
+        display_name: String(technician.display_name ?? "Technicien"),
+        site: typeof technician.site === "string" && technician.site.trim() ? technician.site : null,
+        technician_id: String(technician.id),
+      },
+    ];
+  }) satisfies RecipientCandidate[];
+
+  const filtered =
+    options.targetType === "site" && options.site
+      ? candidates.filter((candidate) => candidate.site === options.site)
+      : candidates;
+
+  const unique = new Map<string, RecipientCandidate>();
+  filtered.forEach((candidate) => unique.set(candidate.technician_id, candidate));
+
+  return [...unique.values()].sort((left, right) =>
+    left.display_name.localeCompare(right.display_name, "fr"),
+  );
+}
+
+export async function sendOfficeMessageAction(
+  previousState: MessagingActionState,
+  formData: FormData,
+): Promise<MessagingActionState> {
+  void previousState;
+  const auth = await requireOfficeWriteModule("messagerie");
+  const adminSupabase = createServerSupabaseAdminClient();
+
+  if (!adminSupabase) {
+    return {
+      error: "Client admin Supabase indisponible. Verifie la cle service role.",
+      success: null,
+    };
+  }
+
+  try {
+    const targetType = normalizeTargetType(formData.get("target_type"));
+    const managerId = String(formData.get("target_manager_id") ?? "").trim() || null;
+    const managerName = String(formData.get("target_manager_name") ?? "").trim() || null;
+    const site = String(formData.get("target_site") ?? "").trim() || null;
+    const selectedTechnicianIds = formData
+      .getAll("technician_id")
+      .map((value) => String(value).trim())
+      .filter(Boolean);
+    const title = String(formData.get("title") ?? "").replace(/\s+/g, " ").trim();
+    const body = String(formData.get("body") ?? "").trim();
+    const sentByOfficeAccountId = auth.officeAccount?.id ?? null;
+    const sentByEmail = auth.user?.email ?? null;
+
+    if (!sentByOfficeAccountId) {
+      throw new Error("Compte bureau introuvable pour l'envoi du message.");
+    }
+
+    if (!sentByEmail) {
+      throw new Error("Utilisateur non authentifie.");
+    }
+
+    if (!title) {
+      throw new Error("Le titre du message est obligatoire.");
+    }
+
+    if (!body) {
+      throw new Error("Le message est obligatoire.");
+    }
+
+    if (targetType === "site" && !site) {
+      throw new Error("Selectionne un groupe/site.");
+    }
+
+    if (targetType === "manager" && !managerId) {
+      throw new Error("Selectionne un manager.");
+    }
+
+    const recipients = await resolveRecipients({
+      adminSupabase,
+      managerId,
+      selectedTechnicianIds,
+      site,
+      targetType,
+    });
+
+    if (recipients.length === 0) {
+      throw new Error("Aucun destinataire terrain actif trouve pour cette cible.");
+    }
+
+    const targetLabel =
+      targetType === "agency"
+        ? "Toute l'agence"
+        : targetType === "site"
+          ? `Groupe ${site}`
+          : targetType === "manager"
+            ? `Manager ${managerName ?? "non renseigne"}`
+          : recipients.map((recipient) => recipient.display_name).join(", ");
+
+    const { data: message, error: messageError } = await adminSupabase
+      .from("office_messages")
+      .insert({
+        body,
+        sent_by_email: sentByEmail,
+        sent_by_user_id: sentByOfficeAccountId,
+        target_label: targetLabel,
+        target_site: targetType === "site" ? site : null,
+        target_type: targetType,
+        title,
+      })
+      .select("id")
+      .single();
+
+    if (messageError || !message?.id) {
+      throw new Error(messageError?.message ?? "Creation du message impossible.");
+    }
+
+    const messageId = String(message.id);
+    const { error: recipientError } = await adminSupabase.from("office_message_recipients").insert(
+      recipients.map((recipient) => ({
+        message_id: messageId,
+        office_account_id: recipient.account_id,
+        site_code: recipient.site,
+        technician_id: recipient.technician_id,
+        technician_name: recipient.display_name,
+      })),
+    );
+
+    if (recipientError) {
+      throw new Error(recipientError.message);
+    }
+
+    const attachment = formData.get("attachment");
+
+    if (attachment instanceof File && attachment.size > 0) {
+      if (attachment.size > MAX_ATTACHMENT_SIZE) {
+        throw new Error("La piece jointe ne doit pas depasser 10 Mo.");
+      }
+
+      const storagePath = `${messageId}/${Date.now()}-${safeFileName(attachment.name)}`;
+      const { error: uploadError } = await adminSupabase.storage
+        .from(MESSAGE_ATTACHMENT_BUCKET)
+        .upload(storagePath, attachment, {
+          contentType: attachment.type || "application/octet-stream",
+          upsert: false,
+        });
+
+      if (uploadError) {
+        throw new Error(uploadError.message);
+      }
+
+      const { error: attachmentError } = await adminSupabase
+        .from("office_message_attachments")
+        .insert({
+          file_name: attachment.name || "piece-jointe",
+          file_size: attachment.size,
+          message_id: messageId,
+          mime_type: attachment.type || null,
+          storage_path: storagePath,
+        });
+
+      if (attachmentError) {
+        throw new Error(attachmentError.message);
+      }
+    }
+
+    revalidatePath("/messagerie");
+    revalidatePath("/terrain/messages");
+    revalidatePath("/terrain");
+
+    return {
+      error: null,
+      success: `Message envoye a ${recipients.length} technicien(s).`,
+    };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Envoi du message impossible.",
+      success: null,
+    };
+  }
+}
+
+export async function markTerrainMessagesAsReadAction(
+  previousState: TerrainMessageReadState,
+  formData: FormData,
+): Promise<TerrainMessageReadState> {
+  void previousState;
+  const terrainAuth = await requireTerrainAccess();
+  const adminSupabase = createServerSupabaseAdminClient();
+
+  if (!adminSupabase) {
+    return {
+      error: "Client admin Supabase indisponible. Verifie la cle service role.",
+      success: null,
+    };
+  }
+
+  try {
+    const recipientIds = formData
+      .getAll("recipient_id")
+      .map((value) => String(value).trim())
+      .filter(Boolean);
+
+    if (recipientIds.length === 0) {
+      return {
+        error: null,
+        success: null,
+      };
+    }
+
+    const officeAccountId = terrainAuth.officeAccount?.id ?? null;
+    const technicianId = terrainAuth.officeAccount?.technicianId ?? null;
+
+    if (!officeAccountId || !technicianId) {
+      throw new Error("Compte terrain introuvable.");
+    }
+
+    const readAt = new Date().toISOString();
+    const { error } = await adminSupabase
+      .from("office_message_recipients")
+      .update({ read_at: readAt })
+      .in("id", recipientIds)
+      .eq("technician_id", technicianId)
+      .eq("office_account_id", officeAccountId)
+      .is("read_at", null);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    revalidatePath("/terrain/messages");
+    revalidatePath("/terrain");
+    revalidatePath("/messagerie");
+
+    return {
+      error: null,
+      success: "Messages marques comme lus.",
+    };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Confirmation de lecture impossible.",
+      success: null,
+    };
+  }
+}
