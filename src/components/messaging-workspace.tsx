@@ -27,6 +27,27 @@ function formatMessageTimestamp(value: string) {
   }).format(new Date(value));
 }
 
+function statusBadge(message: OfficeMessageSummary) {
+  if (message.status === "scheduled") {
+    return {
+      className: "border-violet-200 bg-violet-50 text-violet-700",
+      label: "Programme",
+    };
+  }
+
+  if (message.status === "expired") {
+    return {
+      className: "border-slate-200 bg-slate-100 text-slate-600",
+      label: "Expire",
+    };
+  }
+
+  return {
+    className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    label: "Actif",
+  };
+}
+
 function summarizeNames(values: string[], maxVisible = 3) {
   if (values.length === 0) {
     return "Aucun";
@@ -189,6 +210,7 @@ export function MessagingWorkspace({
                   const readRecipients = message.recipients.filter((recipient) => recipient.readAt);
                   const unreadRecipients = message.recipients.filter((recipient) => !recipient.readAt);
                   const sentByLabel = message.sentByName || message.sentByEmail;
+                  const status = statusBadge(message);
 
                   return (
                     <div
@@ -208,12 +230,33 @@ export function MessagingWorkspace({
                               <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-sky-700">
                                 {message.targetLabel}
                               </span>
+                              <span
+                                className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] ${status.className}`}
+                              >
+                                {status.label}
+                              </span>
                             </div>
                             <p className="truncate text-sm text-slate-500">{message.body}</p>
                             <p className="mt-1 text-xs text-slate-400">
                               {formatMessageTimestamp(message.sentAt)} par {sentByLabel}
                             </p>
                             <div className="mt-2 space-y-1 text-xs text-slate-500">
+                              <p>
+                                <span className="font-semibold text-slate-600">Publication:</span>{" "}
+                                {formatMessageTimestamp(message.publishAt)}
+                              </p>
+                              {message.validFrom ? (
+                                <p>
+                                  <span className="font-semibold text-slate-600">Visible des:</span>{" "}
+                                  {formatMessageTimestamp(message.validFrom)}
+                                </p>
+                              ) : null}
+                              {message.validUntil ? (
+                                <p>
+                                  <span className="font-semibold text-slate-600">Visible jusqu&apos;au:</span>{" "}
+                                  {formatMessageTimestamp(message.validUntil)}
+                                </p>
+                              ) : null}
                               <p>
                                 <span className="font-semibold text-slate-600">Destinataires:</span>{" "}
                                 {summarizeNames(message.recipients.map((recipient) => recipient.technicianName))}

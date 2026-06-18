@@ -35,6 +35,76 @@ type RecipientCandidate = {
 
 const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
 
+const PARIS_TIMEZONE = "Europe/Paris";
+
+function getTimeZoneOffsetMs(timeZone: string, date: Date) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+
+  const values = Object.fromEntries(
+    formatter
+      .formatToParts(date)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+
+  const asUtc = Date.UTC(
+    Number(values.year),
+    Number(values.month) - 1,
+    Number(values.day),
+    Number(values.hour),
+    Number(values.minute),
+    Number(values.second),
+  );
+
+  return asUtc - date.getTime();
+}
+
+function parseParisDateTime(value: string) {
+  const match = value.match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/,
+  );
+
+  if (!match) {
+    throw new Error("Format de date/heure invalide.");
+  }
+
+  const [, year, month, day, hour, minute] = match;
+  let utcGuess = Date.UTC(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    0,
+  );
+
+  for (let index = 0; index < 2; index += 1) {
+    const offset = getTimeZoneOffsetMs(PARIS_TIMEZONE, new Date(utcGuess));
+    utcGuess -= offset;
+  }
+
+  return new Date(utcGuess).toISOString();
+}
+
+function parseOptionalParisDateTime(value: FormDataEntryValue | null) {
+  const text = String(value ?? "").trim();
+
+  if (!text) {
+    return null;
+  }
+
+  return parseParisDateTime(text);
+}
+
 function normalizeTargetType(value: FormDataEntryValue | null): MessagingTargetType {
   const text = String(value ?? "").trim();
 
@@ -180,6 +250,9 @@ export async function sendOfficeMessageAction(
       .filter(Boolean);
     const title = String(formData.get("title") ?? "").replace(/\s+/g, " ").trim();
     const body = String(formData.get("body") ?? "").trim();
+    const publishAt = parseOptionalParisDateTime(formData.get("publish_at"));
+    const validFromInput = parseOptionalParisDateTime(formData.get("valid_from"));
+    const validUntil = parseOptionalParisDateTime(formData.get("valid_until"));
     const sentByOfficeAccountId = auth.officeAccount?.id ?? null;
     const sentByEmail = auth.user?.email ?? null;
 
@@ -207,6 +280,17 @@ export async function sendOfficeMessageAction(
       throw new Error("Selectionne un manager.");
     }
 
+    const effectivePublishAt = publishAt ?? new Date().toISOString();
+    const validFrom = validFromInput ?? publishAt ?? null;
+
+    if (validFrom && validUntil && new Date(validUntil).getTime() < new Date(validFrom).getTime()) {
+      throw new Error("La fin de validite doit etre apres le debut de validite.");
+    }
+
+    if (validUntil && new Date(validUntil).getTime() < new Date(effectivePublishAt).getTime()) {
+      throw new Error("La fin de validite doit etre apres l'envoi programme.");
+    }
+
     const recipients = await resolveRecipients({
       adminSupabase,
       managerId,
@@ -232,12 +316,15 @@ export async function sendOfficeMessageAction(
       .from("office_messages")
       .insert({
         body,
+        publish_at: effectivePublishAt,
         sent_by_email: sentByEmail,
         sent_by_user_id: sentByOfficeAccountId,
         target_label: targetLabel,
         target_site: targetType === "site" ? site : null,
         target_type: targetType,
         title,
+        valid_from: validFrom,
+        valid_until: validUntil,
       })
       .select("id")
       .single();
@@ -301,7 +388,10 @@ export async function sendOfficeMessageAction(
 
     return {
       error: null,
-      success: `Message envoye a ${recipients.length} technicien(s).`,
+      success:
+        new Date(effectivePublishAt).getTime() > Date.now()
+          ? `Message programme pour ${recipients.length} technicien(s).`
+          : `Message envoye a ${recipients.length} technicien(s).`,
     };
   } catch (error) {
     return {

@@ -48,15 +48,19 @@ export type OfficeMessageSummary = {
   currentReadAt?: string | null;
   currentRecipientId?: string | null;
   id: string;
+  publishAt: string;
   recipients: OfficeMessageRecipient[];
   replies: OfficeMessageReply[];
   sentAt: string;
   sentByEmail: string;
   sentByName?: string | null;
+  status: "active" | "expired" | "scheduled";
   targetLabel: string;
   targetSite: string | null;
   targetType: MessagingTargetType;
   title: string;
+  validFrom: string | null;
+  validUntil: string | null;
 };
 
 type MessageRow = {
@@ -67,9 +71,12 @@ type MessageRow = {
   target_label: string;
   target_site: string | null;
   archived_at?: string | null;
+  publish_at?: string | null;
   sent_by_email: string;
   sent_by_user_id?: string | null;
   sent_at: string;
+  valid_from?: string | null;
+  valid_until?: string | null;
   office_accounts?: OfficeAccountRelationRow;
   office_message_attachments: AttachmentRow[] | null;
   office_message_recipients: RecipientRow[] | null;
@@ -155,6 +162,27 @@ function mapReply(row: ReplyRow): OfficeMessageReply {
   };
 }
 
+function resolveMessageStatus(row: MessageRow) {
+  const now = Date.now();
+  const publishAtMs = new Date(row.publish_at ?? row.sent_at).getTime();
+  const validFromMs = row.valid_from ? new Date(row.valid_from).getTime() : null;
+  const validUntilMs = row.valid_until ? new Date(row.valid_until).getTime() : null;
+
+  if (publishAtMs > now || (validFromMs !== null && validFromMs > now)) {
+    return "scheduled" as const;
+  }
+
+  if (validUntilMs !== null && validUntilMs < now) {
+    return "expired" as const;
+  }
+
+  return "active" as const;
+}
+
+function isVisibleOnTerrain(row: MessageRow) {
+  return resolveMessageStatus(row) === "active";
+}
+
 function mapMessage(row: MessageRow): OfficeMessageSummary {
   const senderAccount = row.office_accounts;
   const sentByName = Array.isArray(senderAccount)
@@ -168,15 +196,19 @@ function mapMessage(row: MessageRow): OfficeMessageSummary {
     archivedAt: row.archived_at ?? null,
     body: row.body,
     id: row.id,
+    publishAt: row.publish_at ?? row.sent_at,
     recipients: (row.office_message_recipients ?? []).map(mapRecipient),
     replies: (row.office_message_replies ?? []).map(mapReply),
     sentAt: row.sent_at,
     sentByEmail: row.sent_by_email,
     sentByName,
+    status: resolveMessageStatus(row),
     targetLabel: row.target_label,
     targetSite: row.target_site,
     targetType: row.target_type,
     title: row.title,
+    validFrom: row.valid_from ?? null,
+    validUntil: row.valid_until ?? null,
   };
 }
 
@@ -257,8 +289,9 @@ export async function getRecentOfficeMessages(options?: {
   let query = supabase
     .from("office_messages")
     .select(
-      "id, title, body, target_type, target_label, target_site, archived_at, sent_by_email, sent_by_user_id, sent_at, office_accounts!office_messages_sent_by_user_id_fkey(full_name), office_message_recipients(id, read_at, site_code, technician_id, technician_name), office_message_attachments(id, file_name, file_size, mime_type, storage_path), office_message_replies(id, technician_id, technician_name, body, sent_at)",
+      "id, title, body, target_type, target_label, target_site, archived_at, publish_at, sent_by_email, sent_by_user_id, sent_at, valid_from, valid_until, office_accounts!office_messages_sent_by_user_id_fkey(full_name), office_message_recipients(id, read_at, site_code, technician_id, technician_name), office_message_attachments(id, file_name, file_size, mime_type, storage_path), office_message_replies(id, technician_id, technician_name, body, sent_at)",
     )
+    .order("publish_at", { ascending: false })
     .order("sent_at", { ascending: false })
     .is("archived_at", null)
     .limit(limit);
@@ -299,7 +332,7 @@ export async function getTerrainMessageInbox(
   let query = supabase
     .from("office_message_recipients")
     .select(
-      "id, read_at, site_code, technician_id, technician_name, office_messages(id, title, body, target_type, target_label, target_site, archived_at, sent_by_email, sent_by_user_id, sent_at, office_accounts!office_messages_sent_by_user_id_fkey(full_name), office_message_attachments(id, file_name, file_size, mime_type, storage_path), office_message_recipients(id, read_at, site_code, technician_id, technician_name))",
+      "id, read_at, site_code, technician_id, technician_name, office_messages(id, title, body, target_type, target_label, target_site, archived_at, publish_at, sent_by_email, sent_by_user_id, sent_at, valid_from, valid_until, office_accounts!office_messages_sent_by_user_id_fkey(full_name), office_message_attachments(id, file_name, file_size, mime_type, storage_path), office_message_recipients(id, read_at, site_code, technician_id, technician_name))",
     )
     .eq("technician_id", technicianId)
     .order("created_at", { ascending: false })
@@ -322,6 +355,10 @@ export async function getTerrainMessageInbox(
         : row.office_messages;
 
       if (!message) {
+        return accumulator;
+      }
+
+      if (!isVisibleOnTerrain(message)) {
         return accumulator;
       }
 
@@ -380,7 +417,9 @@ export async function getUnreadTerrainMessageCount(
   const supabase = await getServerReader();
   let query = supabase
     .from("office_message_recipients")
-    .select("id", { count: "exact", head: true })
+    .select(
+      "id, read_at, office_messages(id, publish_at, sent_at, valid_from, valid_until, target_type, target_label, target_site, body, title, sent_by_email, office_message_attachments(id, file_name, file_size, mime_type, storage_path), office_message_recipients(id, read_at, site_code, technician_id, technician_name))",
+    )
     .eq("technician_id", technicianId)
     .is("read_at", null);
 
@@ -388,13 +427,19 @@ export async function getUnreadTerrainMessageCount(
     query = query.or(`office_account_id.is.null,office_account_id.eq.${officeAccountId}`);
   }
 
-  const { count, error } = await query;
+  const { data, error } = await query;
 
   if (error) {
     return 0;
   }
 
-  return count ?? 0;
+  return ((data ?? []) as RecipientWithMessageRow[]).filter((row) => {
+    const message = Array.isArray(row.office_messages)
+      ? row.office_messages[0]
+      : row.office_messages;
+
+    return Boolean(message && isVisibleOnTerrain(message));
+  }).length;
 }
 
 export { MESSAGE_ATTACHMENT_BUCKET };

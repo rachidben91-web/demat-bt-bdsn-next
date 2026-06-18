@@ -239,6 +239,35 @@ export function MessagingComposer({ sites, technicians }: MessagingComposerProps
         />
       </label>
 
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <label className="block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+          Envoi programme
+          <input
+            className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-medium normal-case tracking-normal text-slate-900 outline-none focus:border-teal-400"
+            name="publish_at"
+            type="datetime-local"
+          />
+        </label>
+
+        <label className="block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+          Visible a partir du
+          <input
+            className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-medium normal-case tracking-normal text-slate-900 outline-none focus:border-teal-400"
+            name="valid_from"
+            type="datetime-local"
+          />
+        </label>
+      </div>
+
+      <label className="mt-3 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+        Visible jusqu&apos;au
+        <input
+          className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-medium normal-case tracking-normal text-slate-900 outline-none focus:border-teal-400"
+          name="valid_until"
+          type="datetime-local"
+        />
+      </label>
+
       <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-2xl border border-dashed border-teal-200 bg-white px-3 py-3 text-sm font-medium text-slate-600">
         <Paperclip className="h-4 w-4 text-teal-700" />
         <span className="min-w-0 flex-1 truncate">
