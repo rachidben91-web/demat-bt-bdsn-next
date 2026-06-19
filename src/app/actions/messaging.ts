@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireOfficeWriteModule, requireTerrainAccess } from "@/lib/auth";
 import { MESSAGE_ATTACHMENT_BUCKET, type MessagingTargetType } from "@/lib/messaging";
+import { getActiveSiteCodeOrDefault } from "@/lib/sites";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
 export type MessagingActionState = {
@@ -30,6 +31,7 @@ type RecipientCandidate = {
   account_id: string | null;
   display_name: string;
   site: string | null;
+  site_code: string | null;
   technician_id: string;
 };
 
@@ -130,11 +132,12 @@ async function resolveRecipients(options: {
   managerId: string | null;
   selectedTechnicianIds: string[];
   site: string | null;
+  siteCode: string;
   targetType: MessagingTargetType;
 }) {
   let query = options.adminSupabase
     .from("office_accounts")
-    .select("id, technician_id, technicians(id, display_name, site, manager_id, managers(name))")
+    .select("id, technician_id, technicians(id, display_name, site, site_code, manager_id, managers(name))")
     .eq("account_status", "active")
     .eq("can_access_terrain_app", true)
     .not("technician_id", "is", null);
@@ -173,15 +176,22 @@ async function resolveRecipients(options: {
         account_id: typeof row.id === "string" ? row.id : null,
         display_name: String(technician.display_name ?? "Technicien"),
         site: typeof technician.site === "string" && technician.site.trim() ? technician.site : null,
+        site_code:
+          typeof technician.site_code === "string" && technician.site_code.trim()
+            ? technician.site_code
+            : null,
         technician_id: String(technician.id),
       },
     ];
   }) satisfies RecipientCandidate[];
 
+  const siteScopedCandidates = candidates.filter((candidate) => candidate.site_code === options.siteCode);
   const filtered =
     options.targetType === "site" && options.site
-      ? candidates.filter((candidate) => candidate.site === options.site)
-      : candidates;
+      ? siteScopedCandidates.filter(
+          (candidate) => candidate.site_code === options.site || candidate.site === options.site,
+        )
+      : siteScopedCandidates;
 
   const unique = new Map<string, RecipientCandidate>();
   filtered.forEach((candidate) => unique.set(candidate.technician_id, candidate));
@@ -241,6 +251,7 @@ export async function sendOfficeMessageAction(
 
   try {
     const targetType = normalizeTargetType(formData.get("target_type"));
+    const activeSiteCode = await getActiveSiteCodeOrDefault();
     const managerId = String(formData.get("target_manager_id") ?? "").trim() || null;
     const managerName = String(formData.get("target_manager_name") ?? "").trim() || null;
     const site = String(formData.get("target_site") ?? "").trim() || null;
@@ -296,6 +307,7 @@ export async function sendOfficeMessageAction(
       managerId,
       selectedTechnicianIds,
       site,
+      siteCode: activeSiteCode,
       targetType,
     });
 
@@ -320,7 +332,7 @@ export async function sendOfficeMessageAction(
         sent_by_email: sentByEmail,
         sent_by_user_id: sentByOfficeAccountId,
         target_label: targetLabel,
-        target_site: targetType === "site" ? site : null,
+        target_site: targetType === "site" ? activeSiteCode : null,
         target_type: targetType,
         title,
         valid_from: validFrom,
@@ -338,7 +350,7 @@ export async function sendOfficeMessageAction(
       recipients.map((recipient) => ({
         message_id: messageId,
         office_account_id: recipient.account_id,
-        site_code: recipient.site,
+        site_code: recipient.site_code ?? activeSiteCode,
         technician_id: recipient.technician_id,
         technician_name: recipient.display_name,
       })),

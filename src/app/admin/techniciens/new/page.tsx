@@ -4,18 +4,21 @@ import { TechnicianForm } from "@/app/admin/techniciens/technician-form";
 import { getManagerOptions } from "@/lib/admin-technicians";
 import { getReadableOfficeModules, requireOfficeModule } from "@/lib/auth";
 import { getModuleTheme } from "@/lib/module-theme";
+import { getActiveSiteCodeOrDefault } from "@/lib/sites";
 
 export default async function NewTechnicianPage() {
   const adminTheme = getModuleTheme("admin");
   const auth = await requireOfficeModule("technicians_admin");
   const allowedModules = getReadableOfficeModules(auth);
-  const managers = await getManagerOptions();
+  const activeSiteCode = await getActiveSiteCodeOrDefault();
+  const managers = await getManagerOptions(activeSiteCode);
 
   return (
     <main className={`min-h-screen px-4 py-4 text-slate-900 sm:px-6 lg:px-8 ${adminTheme.pageBackgroundClassName}`}>
       <div className="mx-auto max-w-[2360px]">
         <AppShellHeader
           activeModule="admin"
+          activeSiteCode={activeSiteCode}
           allowedModules={allowedModules}
           isSuperAdmin={auth.role === "admin"}
           role={auth.role ?? auth.officeAccount?.officeRole ?? null}

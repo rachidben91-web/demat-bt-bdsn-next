@@ -6,6 +6,7 @@ import {
   createServerSupabaseClient,
 } from "@/lib/supabase/server";
 import { getCurrentAuthContext, getDefaultAppPath } from "@/lib/auth";
+import { clearActiveSiteCode } from "@/lib/sites";
 
 export type LoginFormState = {
   error: string | null;
@@ -132,11 +133,13 @@ export async function terrainLoginAction(
 export async function logoutAction() {
   const supabase = await createServerSupabaseClient();
   await supabase.auth.signOut();
+  await clearActiveSiteCode();
   redirect("/login");
 }
 
 export async function terrainLogoutAction() {
   const supabase = await createServerSupabaseClient();
   await supabase.auth.signOut();
+  await clearActiveSiteCode();
   redirect("/terrain/login");
 }

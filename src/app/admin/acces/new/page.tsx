@@ -4,18 +4,21 @@ import { AccessForm } from "@/app/admin/acces/access-form";
 import { getTechniciansEligibleForOfficeAccess } from "@/lib/admin-office-accounts";
 import { getReadableOfficeModules, requireOfficeModule } from "@/lib/auth";
 import { getModuleTheme } from "@/lib/module-theme";
+import { getActiveSiteCodeOrDefault } from "@/lib/sites";
 
 export default async function NewAdminAccessPage() {
   const accessTheme = getModuleTheme("access");
   const auth = await requireOfficeModule("office_access");
   const allowedModules = getReadableOfficeModules(auth);
-  const technicians = await getTechniciansEligibleForOfficeAccess();
+  const activeSiteCode = await getActiveSiteCodeOrDefault();
+  const technicians = await getTechniciansEligibleForOfficeAccess(activeSiteCode);
 
   return (
     <main className={`min-h-screen px-4 py-4 text-slate-900 sm:px-6 lg:px-8 ${accessTheme.pageBackgroundClassName}`}>
       <div className="mx-auto max-w-[2360px]">
         <AppShellHeader
           activeModule="access"
+          activeSiteCode={activeSiteCode}
           allowedModules={allowedModules}
           isSuperAdmin={auth.role === "admin"}
           role={auth.role ?? auth.officeAccount?.officeRole ?? null}

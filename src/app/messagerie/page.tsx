@@ -1,6 +1,7 @@
 import { MessagingWorkspace } from "@/components/messaging-workspace";
 import { getReadableOfficeModules, requireOfficeModule } from "@/lib/auth";
 import { getMessagingTechnicianTargets, getRecentOfficeMessages } from "@/lib/messaging";
+import { getActiveSiteCodeOrDefault } from "@/lib/sites";
 import { getSupportJourneeData } from "@/lib/support-journee";
 
 type MessageriePageProps = {
@@ -12,10 +13,11 @@ type MessageriePageProps = {
 export default async function MessageriePage({ searchParams }: MessageriePageProps) {
   const auth = await requireOfficeModule("messagerie");
   const allowedModules = getReadableOfficeModules(auth);
+  const activeSiteCode = await getActiveSiteCodeOrDefault();
   const resolvedSearchParams = await searchParams;
   const [data, messageTargets, recentMessages] = await Promise.all([
-    getSupportJourneeData(resolvedSearchParams?.date),
-    getMessagingTechnicianTargets(),
+    getSupportJourneeData(resolvedSearchParams?.date, activeSiteCode),
+    getMessagingTechnicianTargets(activeSiteCode),
     getRecentOfficeMessages({
       viewerOfficeAccountId: auth.officeAccount?.id ?? null,
       viewerRole: auth.role,
@@ -34,6 +36,7 @@ export default async function MessageriePage({ searchParams }: MessageriePagePro
 
   return (
     <MessagingWorkspace
+      activeSiteCode={activeSiteCode}
       allowedModules={allowedModules}
       data={data}
       headerDateTimeLabel={headerDateTimeLabel}

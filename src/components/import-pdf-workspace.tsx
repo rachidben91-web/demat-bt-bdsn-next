@@ -10,8 +10,10 @@ import { analyzePdfFile } from "@/lib/pdf-import/extractor";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import type { PdfImportAnalysis } from "@/lib/pdf-import/types";
 import type { OfficeModuleKey } from "@/lib/office-access";
+import type { SiteCode } from "@/lib/site-options";
 
 type ImportPdfWorkspaceProps = {
+  activeSiteCode?: SiteCode | null;
   allowedModules?: OfficeModuleKey[];
   isSuperAdmin?: boolean;
   role: string | null;
@@ -32,10 +34,10 @@ function formatDateLabel(value: string | null) {
   }).format(new Date(`${value}T12:00:00Z`));
 }
 
-function buildStoragePath(dayIso: string, fileName: string) {
+function buildStoragePath(siteCode: SiteCode, dayIso: string, fileName: string) {
   const safeName = sanitizeFileSegment(fileName);
 
-  return `VLG/${dayIso}/${safeName || "journee.pdf"}`;
+  return `${siteCode}/${dayIso}/${safeName || "journee.pdf"}`;
 }
 
 function sanitizeFileSegment(value: string) {
@@ -47,9 +49,9 @@ function sanitizeFileSegment(value: string) {
     .replace(/^-|-$/g, "");
 }
 
-function buildDerivedStoragePath(dayIso: string, btId: string) {
+function buildDerivedStoragePath(siteCode: SiteCode, dayIso: string, btId: string) {
   const safeBtId = sanitizeFileSegment(btId.toUpperCase());
-  return `VLG/${dayIso}/bt/${safeBtId || "BT"}.pdf`;
+  return `${siteCode}/${dayIso}/bt/${safeBtId || "BT"}.pdf`;
 }
 
 function badgeTone(type: string) {
@@ -73,12 +75,14 @@ function badgeTone(type: string) {
 }
 
 export function ImportPdfWorkspace({
+  activeSiteCode,
   allowedModules = [],
   isSuperAdmin = false,
   role,
   userEmail,
 }: ImportPdfWorkspaceProps) {
   const importTheme = getModuleTheme("import");
+  const storageSiteCode = activeSiteCode ?? "VLG";
   const [analysis, setAnalysis] = useState<PdfImportAnalysis | null>(null);
   const [status, setStatus] = useState("Choisissez un PDF journalier pour lancer la reconnaissance DBT.");
   const [error, setError] = useState<string | null>(null);
@@ -132,7 +136,7 @@ export function ImportPdfWorkspace({
 
         if (selectedFile && analysis.importedDayIso) {
           setStatus("Televersement du PDF source...");
-          storagePath = buildStoragePath(analysis.importedDayIso, selectedFile.name);
+          storagePath = buildStoragePath(storageSiteCode, analysis.importedDayIso, selectedFile.name);
           const supabase = createBrowserSupabaseClient();
           const { error: uploadError } = await supabase.storage
             .from("bt-import-pdfs")
@@ -147,7 +151,7 @@ export function ImportPdfWorkspace({
 
           setStatus("Préparation des PDF dérivés par BT...");
           const derivedPdfs = await createDerivedBtPdfFiles(selectedFile, analysis, setStatus);
-          const derivedPrefix = `VLG/${analysis.importedDayIso}/bt`;
+          const derivedPrefix = `${storageSiteCode}/${analysis.importedDayIso}/bt`;
           const { data: existingDerivedFiles, error: listDerivedError } = await supabase.storage
             .from("bt-import-pdfs")
             .list(derivedPrefix, {
@@ -183,7 +187,7 @@ export function ImportPdfWorkspace({
               continue;
             }
 
-            const derivedStoragePath = buildDerivedStoragePath(analysis.importedDayIso, bt.id);
+            const derivedStoragePath = buildDerivedStoragePath(storageSiteCode, analysis.importedDayIso, bt.id);
             setStatus(`Televersement du dossier ${bt.id} (${index + 1}/${analysis.bts.length})...`);
             const { error: derivedUploadError } = await supabase.storage
               .from("bt-import-pdfs")
@@ -230,6 +234,7 @@ export function ImportPdfWorkspace({
       <div className="mx-auto max-w-[2360px]">
         <AppShellHeader
           activeModule="import"
+          activeSiteCode={activeSiteCode}
           allowedModules={allowedModules}
           isSuperAdmin={isSuperAdmin}
           role={role}

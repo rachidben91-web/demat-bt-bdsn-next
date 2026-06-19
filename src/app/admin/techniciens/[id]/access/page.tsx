@@ -11,6 +11,7 @@ import {
 } from "@/lib/admin-office-accounts";
 import { getReadableOfficeModules, requireOfficeModule } from "@/lib/auth";
 import { getModuleTheme } from "@/lib/module-theme";
+import { getActiveSiteCodeOrDefault } from "@/lib/sites";
 import {
   OFFICE_ACCOUNT_STATUS_LABELS,
   OFFICE_ROLE_LABELS,
@@ -23,11 +24,12 @@ export default async function TechnicianAccessPage(
   const adminTheme = getModuleTheme("admin");
   const auth = await requireOfficeModule("office_access");
   const allowedModules = getReadableOfficeModules(auth);
+  const activeSiteCode = await getActiveSiteCodeOrDefault();
   const { id } = await props.params;
   const [technician, account, technicians] = await Promise.all([
     getTechnicianById(id),
     getOfficeAccountByTechnicianId(id),
-    getTechniciansForOfficeAccess(id),
+    getTechniciansForOfficeAccess(id, activeSiteCode),
   ]);
 
   if (!technician) {
@@ -41,6 +43,7 @@ export default async function TechnicianAccessPage(
       <div className="mx-auto max-w-[2360px]">
         <AppShellHeader
           activeModule="admin"
+          activeSiteCode={activeSiteCode}
           allowedModules={allowedModules}
           isSuperAdmin={auth.role === "admin"}
           role={auth.role ?? auth.officeAccount?.officeRole ?? null}

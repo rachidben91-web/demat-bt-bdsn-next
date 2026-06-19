@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { TECHNICIAN_ROLE_OPTIONS } from "@/lib/admin-technicians";
+import { getSiteLabel, isSiteCode, type SiteCode } from "@/lib/site-options";
+import { getActiveSiteCodeOrDefault } from "@/lib/sites";
 import {
   createServerSupabaseAdminClient,
   createServerSupabaseClient,
@@ -32,6 +34,16 @@ function normalizeRole(value: FormDataEntryValue | null) {
     : TECHNICIAN_ROLE_OPTIONS[0];
 }
 
+async function resolveFormSiteCode(value: FormDataEntryValue | null): Promise<SiteCode> {
+  const rawValue = typeof value === "string" ? value.trim() : "";
+
+  if (isSiteCode(rawValue)) {
+    return rawValue;
+  }
+
+  return getActiveSiteCodeOrDefault();
+}
+
 export async function createTechnicianAction(formData: FormData) {
   await requireAdmin();
 
@@ -40,6 +52,7 @@ export async function createTechnicianAction(formData: FormData) {
   const firstName = toRequiredString(formData.get("first_name"));
   const lastName = toRequiredString(formData.get("last_name"));
   const nni = toRequiredString(formData.get("nni"));
+  const siteCode = await resolveFormSiteCode(formData.get("site_code"));
 
   if (!firstName || !lastName || !nni) {
     throw new Error("Nom, prenom et NNI obligatoires.");
@@ -51,7 +64,8 @@ export async function createTechnicianAction(formData: FormData) {
     last_name: lastName,
     display_name: getDisplayName(firstName, lastName),
     manager_id: toOptionalString(formData.get("manager_id")),
-    site: toRequiredString(formData.get("site"), "VLG"),
+    site: getSiteLabel(siteCode),
+    site_code: siteCode,
     role: normalizeRole(formData.get("role")),
     color: toRequiredString(formData.get("color"), "#2563eb"),
     ptc: formData.has("ptc"),
@@ -80,6 +94,7 @@ export async function updateTechnicianAction(formData: FormData) {
   const firstName = toRequiredString(formData.get("first_name"));
   const lastName = toRequiredString(formData.get("last_name"));
   const nni = toRequiredString(formData.get("nni"));
+  const siteCode = await resolveFormSiteCode(formData.get("site_code"));
 
   if (!id || !firstName || !lastName || !nni) {
     throw new Error("Technicien invalide.");
@@ -91,7 +106,8 @@ export async function updateTechnicianAction(formData: FormData) {
     last_name: lastName,
     display_name: getDisplayName(firstName, lastName),
     manager_id: toOptionalString(formData.get("manager_id")),
-    site: toRequiredString(formData.get("site"), "VLG"),
+    site: getSiteLabel(siteCode),
+    site_code: siteCode,
     role: normalizeRole(formData.get("role")),
     color: toRequiredString(formData.get("color"), "#2563eb"),
     ptc: formData.has("ptc"),

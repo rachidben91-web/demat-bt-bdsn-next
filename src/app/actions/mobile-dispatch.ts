@@ -2,6 +2,7 @@
 
 import { refresh } from "next/cache";
 import { requireTerrainAccess, requireOfficeWriteModule } from "@/lib/auth";
+import { getActiveSiteCodeOrDefault } from "@/lib/sites";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import type { DepartureInstruction } from "@/lib/mobile-dispatch";
 
@@ -128,7 +129,9 @@ export async function publishMobileDispatchAction(
   try {
     const missionDate = String(formData.get("mission_date") ?? "").trim();
     const btImportDayId = String(formData.get("bt_import_day_id") ?? "").trim() || null;
-    const siteCode = String(formData.get("site_code") ?? "").trim() || null;
+    const activeSiteCode = await getActiveSiteCodeOrDefault();
+    const formSiteCode = String(formData.get("site_code") ?? "").trim();
+    const siteCode = formSiteCode === activeSiteCode ? formSiteCode : activeSiteCode;
     const departureInstruction = normalizeDepartureInstruction(formData.get("departure_instruction"));
     const technicians = parseJson<Array<{ id: string; label: string }>>(
       formData.get("technicians"),
@@ -177,6 +180,7 @@ export async function publishMobileDispatchAction(
       .from("support_days")
       .select("id, global_observation")
       .eq("day_date", missionDate)
+      .eq("site_code", siteCode)
       .maybeSingle<SupportDayLookupRow>();
 
     if (supportDayError) {
@@ -236,6 +240,7 @@ export async function publishMobileDispatchAction(
         mission_date: missionDate,
         published_by_email: publishedByEmail,
         published_by_user_id: auth.user?.id ?? null,
+        site_code: siteCode,
         status: "published",
         support_day_id: supportDayId,
       })
@@ -304,7 +309,7 @@ export async function publishMobileDispatchAction(
     const { error: itemsError } = await adminSupabase
       .from("mobile_dispatch_items")
       .upsert(itemRows, {
-        onConflict: "technician_id,mission_date",
+        onConflict: "technician_id,mission_date,site_code",
       });
 
     if (itemsError) {

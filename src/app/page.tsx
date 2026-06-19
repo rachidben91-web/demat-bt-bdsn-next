@@ -5,6 +5,7 @@ import {
   getReadableOfficeModules,
   requireAnyOfficeAccess,
 } from "@/lib/auth";
+import { getActiveSiteCodeOrDefault } from "@/lib/sites";
 import { getSupportJourneeData } from "@/lib/support-journee";
 import { redirect } from "next/navigation";
 
@@ -17,6 +18,7 @@ type HomeProps = {
 export default async function Home({ searchParams }: HomeProps) {
   const auth = await requireAnyOfficeAccess();
   const allowedModules = getReadableOfficeModules(auth);
+  const activeSiteCode = await getActiveSiteCodeOrDefault();
   const currentDateLabel = new Intl.DateTimeFormat("fr-FR", {
     dateStyle: "full",
     timeZone: "Europe/Paris",
@@ -44,12 +46,13 @@ export default async function Home({ searchParams }: HomeProps) {
 
   const resolvedSearchParams = await searchParams;
   const [supportData, btOverview] = await Promise.all([
-    getSupportJourneeData(resolvedSearchParams?.date),
-    getBtImportDayOverview(),
+    getSupportJourneeData(resolvedSearchParams?.date, activeSiteCode),
+    getBtImportDayOverview(undefined, activeSiteCode),
   ]);
 
   return (
     <DashboardWorkspace
+      activeSiteCode={activeSiteCode}
       allowedModules={allowedModules}
       btOverview={btOverview}
       currentDateLabel={currentDateLabel}

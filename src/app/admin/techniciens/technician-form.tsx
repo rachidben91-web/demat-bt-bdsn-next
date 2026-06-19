@@ -4,6 +4,7 @@ import {
   type ManagerOption,
   type TechnicianAdminRow,
 } from "@/lib/admin-technicians";
+import { SITE_OPTIONS } from "@/lib/site-options";
 
 type TechnicianFormProps = {
   action: (formData: FormData) => Promise<void>;
@@ -75,12 +76,21 @@ export function TechnicianForm({
 
         <label className="text-sm font-semibold text-slate-700">
           Site
-          <input
+          <select
             className={fieldClassName()}
-            defaultValue={technician?.site ?? "VLG"}
-            name="site"
+            defaultValue={
+              SITE_OPTIONS.find((site) => site.label === technician?.site || site.code === technician?.site)
+                ?.code ?? "VLG"
+            }
+            name="site_code"
             required
-          />
+          >
+            {SITE_OPTIONS.map((site) => (
+              <option key={site.code} value={site.code}>
+                {site.label}
+              </option>
+            ))}
+          </select>
         </label>
 
         <label className="text-sm font-semibold text-slate-700">

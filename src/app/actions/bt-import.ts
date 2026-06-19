@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireOfficeWriteModule } from "@/lib/auth";
 import type { PdfImportAnalysis } from "@/lib/pdf-import/types";
+import { getActiveSiteCodeOrDefault } from "@/lib/sites";
 import { createServerSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/server";
 
 export type SaveBtImportResult = {
@@ -40,12 +41,13 @@ export async function saveBtImportDayAction(
 
     const supabase = await createServerSupabaseClient();
     const userEmail = auth.user?.email ?? null;
+    const activeSiteCode = await getActiveSiteCodeOrDefault();
 
     const { data: existingDay, error: existingDayError } = await supabase
       .from("bt_import_days")
       .select("id, day_date")
       .eq("day_date", analysis.importedDayIso)
-      .eq("site_code", "VLG")
+      .eq("site_code", activeSiteCode)
       .maybeSingle();
 
     if (existingDayError) {
@@ -85,7 +87,7 @@ export async function saveBtImportDayAction(
         .from("bt_import_days")
         .insert({
           day_date: analysis.importedDayIso,
-          site_code: "VLG",
+          site_code: activeSiteCode,
           source_pdf_name: analysis.pdfName,
           source_pdf_storage_path: sourcePdfStoragePath ?? null,
           page_count: analysis.pageCount,

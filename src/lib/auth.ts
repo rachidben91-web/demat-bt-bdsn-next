@@ -9,6 +9,7 @@ import {
   type OfficeRole,
   type TerrainRole,
 } from "@/lib/office-access";
+import { getActiveSiteCode } from "@/lib/sites";
 import { redirect } from "next/navigation";
 
 const READABLE_OFFICE_MODULES_IN_ORDER = [
@@ -110,6 +111,18 @@ function mustChangePassword(account: CurrentOfficeAccount | null | undefined) {
   );
 }
 
+async function requireOfficeSiteSelection(requireSite: boolean) {
+  if (!requireSite) {
+    return;
+  }
+
+  const activeSiteCode = await getActiveSiteCode();
+
+  if (!activeSiteCode) {
+    redirect("/choix-site");
+  }
+}
+
 export async function getCurrentAuthContext() {
   if (!isSupabaseConfigured()) {
     return {
@@ -167,8 +180,9 @@ export async function requireAdmin() {
   return auth;
 }
 
-export async function requireAnyOfficeAccess() {
+export async function requireAnyOfficeAccess(options?: { requireSite?: boolean }) {
   const auth = await getCurrentAuthContext();
+  const shouldRequireSite = options?.requireSite ?? true;
 
   if (auth.configured && !auth.user) {
     redirect("/login");
@@ -179,6 +193,7 @@ export async function requireAnyOfficeAccess() {
   }
 
   if (auth.role === "admin") {
+    await requireOfficeSiteSelection(shouldRequireSite);
     return auth;
   }
 
@@ -193,6 +208,8 @@ export async function requireAnyOfficeAccess() {
   ) {
     redirect("/login");
   }
+
+  await requireOfficeSiteSelection(shouldRequireSite);
 
   return auth;
 }
@@ -225,8 +242,12 @@ export async function requireTerrainAccess() {
   return auth;
 }
 
-export async function requireOfficeModule(moduleKey: OfficeModuleKey) {
+export async function requireOfficeModule(
+  moduleKey: OfficeModuleKey,
+  options?: { requireSite?: boolean },
+) {
   const auth = await getCurrentAuthContext();
+  const shouldRequireSite = options?.requireSite ?? true;
 
   if (auth.configured && !auth.user) {
     redirect("/login");
@@ -237,6 +258,7 @@ export async function requireOfficeModule(moduleKey: OfficeModuleKey) {
   }
 
   if (auth.role === "admin") {
+    await requireOfficeSiteSelection(shouldRequireSite);
     return auth;
   }
 
@@ -252,6 +274,8 @@ export async function requireOfficeModule(moduleKey: OfficeModuleKey) {
   ) {
     redirect("/login");
   }
+
+  await requireOfficeSiteSelection(shouldRequireSite);
 
   return auth;
 }

@@ -1,5 +1,6 @@
 import { SupportJourneeWorkspace } from "@/components/support-journee-workspace";
 import { getReadableOfficeModules, requireOfficeModule } from "@/lib/auth";
+import { getActiveSiteCodeOrDefault } from "@/lib/sites";
 import { getSupportJourneeData } from "@/lib/support-journee";
 
 type SupportPageProps = {
@@ -11,11 +12,13 @@ type SupportPageProps = {
 export default async function SupportPage({ searchParams }: SupportPageProps) {
   const auth = await requireOfficeModule("support_journee");
   const allowedModules = getReadableOfficeModules(auth);
+  const activeSiteCode = await getActiveSiteCodeOrDefault();
   const resolvedSearchParams = await searchParams;
-  const data = await getSupportJourneeData(resolvedSearchParams?.date);
+  const data = await getSupportJourneeData(resolvedSearchParams?.date, activeSiteCode);
 
   return (
     <SupportJourneeWorkspace
+      activeSiteCode={activeSiteCode}
       allowedModules={allowedModules}
       data={data}
       isSuperAdmin={auth.role === "admin"}

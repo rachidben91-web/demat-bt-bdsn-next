@@ -3,6 +3,8 @@ import { AppShellHeader } from "@/components/app-shell-header";
 import { getOfficeAccounts } from "@/lib/admin-office-accounts";
 import { getReadableOfficeModules, requireOfficeModule } from "@/lib/auth";
 import { getModuleTheme } from "@/lib/module-theme";
+import { SITE_OPTIONS, getSiteLabel, isSiteCode, type SiteCode } from "@/lib/site-options";
+import { getActiveSiteCodeOrDefault } from "@/lib/sites";
 import {
   OFFICE_ACCOUNT_STATUS_LABELS,
   OFFICE_MODULE_KEYS,
@@ -54,17 +56,30 @@ function getReadableModuleLabels(
   );
 }
 
-export default async function AdminAccessPage() {
+function normalizeSiteFilter(value: string | string[] | undefined, fallback: SiteCode) {
+  const siteCode = Array.isArray(value) ? value[0] : value;
+  return isSiteCode(siteCode) ? siteCode : fallback;
+}
+
+export default async function AdminAccessPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ site?: string | string[] }>;
+}) {
   const accessTheme = getModuleTheme("access");
   const auth = await requireOfficeModule("office_access");
   const allowedModules = getReadableOfficeModules(auth);
-  const accounts = await getOfficeAccounts();
+  const activeSiteCode = await getActiveSiteCodeOrDefault();
+  const params = await searchParams;
+  const selectedSiteCode = normalizeSiteFilter(params.site, activeSiteCode);
+  const accounts = await getOfficeAccounts(selectedSiteCode);
 
   return (
     <main className={`min-h-screen px-4 py-4 text-slate-900 sm:px-6 lg:px-8 ${accessTheme.pageBackgroundClassName}`}>
       <div className="mx-auto max-w-[2360px]">
         <AppShellHeader
           activeModule="access"
+          activeSiteCode={activeSiteCode}
           allowedModules={allowedModules}
           isSuperAdmin={auth.role === "admin"}
           role={auth.role ?? auth.officeAccount?.officeRole ?? null}
@@ -83,18 +98,38 @@ export default async function AdminAccessPage() {
                 Accès et permissions
               </h2>
               <p className="mt-3 max-w-[68ch] text-base leading-7 text-slate-500">
-                Liste des comptes relies aux referents, managers et futurs acces terrain.
+                Liste des comptes relies aux referents, managers et acces terrain de{" "}
+                {getSiteLabel(selectedSiteCode)}.
               </p>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-[auto_auto]">
+              <div className="flex items-center rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+                {SITE_OPTIONS.map((site) => {
+                  const isSelected = site.code === selectedSiteCode;
+
+                  return (
+                    <Link
+                      key={site.code}
+                      className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                        isSelected
+                          ? "bg-blue-600 text-white shadow-sm"
+                          : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                      }`}
+                      href={`/admin/acces?site=${site.code}`}
+                    >
+                      {site.code}
+                    </Link>
+                  );
+                })}
+              </div>
               <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center shadow-sm">
                 <p className="text-2xl font-semibold text-slate-950">{accounts.length}</p>
                 <p className="mt-1 text-sm text-slate-500">comptes detectes</p>
               </div>
               <Link
                 className="flex items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(37,99,235,0.24)]"
-                href="/admin/acces/new"
+                href={`/admin/acces/new?site=${selectedSiteCode}`}
               >
                 + Nouvel acces
               </Link>
@@ -137,7 +172,12 @@ export default async function AdminAccessPage() {
                         {accessLabel(account.canAccessOfficeApp, account.canAccessTerrainApp)}
                       </td>
                       <td className="px-4 py-4 text-slate-600">
-                        {account.technicianDisplayName ?? "Compte externe"}
+                        <p>{account.technicianDisplayName ?? "Compte externe"}</p>
+                        {account.technicianSiteCode ? (
+                          <p className="mt-1 text-xs text-slate-400">
+                            {getSiteLabel(account.technicianSiteCode as SiteCode)}
+                          </p>
+                        ) : null}
                       </td>
                       <td className="px-4 py-4 text-slate-600">
                         {account.officeRole ? OFFICE_ROLE_LABELS[account.officeRole] : "—"}
@@ -176,7 +216,7 @@ export default async function AdminAccessPage() {
                   {accounts.length === 0 ? (
                     <tr>
                       <td className="px-4 py-10 text-center text-slate-500" colSpan={9}>
-                        Aucun compte charge. Lance d&apos;abord la migration des acces puis cree les premiers comptes.
+                        Aucun compte charge pour {getSiteLabel(selectedSiteCode)}.
                       </td>
                     </tr>
                   ) : null}

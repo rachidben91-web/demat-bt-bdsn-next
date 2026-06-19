@@ -1,10 +1,15 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import packageJson from "../../package.json";
+import { chooseSiteAction } from "@/app/choix-site/actions";
 import { getModuleTheme, type AppModuleId } from "@/lib/module-theme";
 import { ModuleIcon } from "@/components/module-icon";
 import { LogoutButton } from "@/components/logout-button";
 import type { OfficeModuleKey } from "@/lib/office-access";
+import { getSiteLabel, SITE_OPTIONS, type SiteCode } from "@/lib/site-options";
 import type { HeaderWeatherZone } from "@/lib/weather";
 
 type ActiveModule = AppModuleId;
@@ -12,6 +17,7 @@ type ActiveModule = AppModuleId;
 type AppShellHeaderProps = {
   activeModule: ActiveModule;
   allowedModules?: OfficeModuleKey[];
+  activeSiteCode?: SiteCode | null;
   headerDateTimeLabel?: string | null;
   isSuperAdmin?: boolean;
   role: string | null;
@@ -68,6 +74,7 @@ function extractFirstName(userEmail: string | null) {
 export function AppShellHeader({
   activeModule,
   allowedModules = [],
+  activeSiteCode,
   headerDateTimeLabel,
   isSuperAdmin = false,
   role,
@@ -78,10 +85,12 @@ export function AppShellHeader({
   weatherGeneratedAtLabel,
   weatherZones = [],
 }: AppShellHeaderProps) {
+  const pathname = usePathname();
   const activeTheme = getModuleTheme(activeModule);
   const appVersion = `v${packageJson.version}`;
   const firstName = extractFirstName(userEmail);
   const roleLabel = formatRoleLabel(role);
+  const activeSiteLabel = activeSiteCode ? getSiteLabel(activeSiteCode) : "Site a choisir";
   const hasHeaderStatus = Boolean(headerDateTimeLabel || weatherGeneratedAtLabel || weatherZones.length > 0);
   const shouldShowSubtitle = Boolean(subtitle?.trim());
   const visibleItems = moduleItems.filter((item) => {
@@ -156,6 +165,34 @@ export function AppShellHeader({
           </div>
 
           <div className="flex flex-wrap items-center justify-start gap-2.5 xl:justify-end">
+              <div className="rounded-[20px] border border-white/95 bg-white/85 p-1.5 shadow-[0_18px_36px_rgba(148,163,184,0.12)] backdrop-blur">
+                <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+                  {activeSiteLabel}
+                </p>
+                <div className="flex gap-1">
+                  {SITE_OPTIONS.map((site) => {
+                    const isActive = site.code === activeSiteCode;
+
+                    return (
+                      <form key={site.code} action={chooseSiteAction}>
+                        <input name="siteCode" type="hidden" value={site.code} />
+                        <input name="returnTo" type="hidden" value={pathname} />
+                        <button
+                          className={cx(
+                            "rounded-[12px] px-2.5 py-1.5 text-xs font-bold transition",
+                            isActive
+                              ? "bg-slate-950 text-white shadow-[0_8px_18px_rgba(15,23,42,0.16)]"
+                              : "text-slate-500 hover:bg-slate-100 hover:text-slate-950",
+                          )}
+                          type="submit"
+                        >
+                          {site.code}
+                        </button>
+                      </form>
+                    );
+                  })}
+                </div>
+              </div>
               <div className="flex items-center gap-3 rounded-[24px] border border-white/95 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(241,245,249,0.9))] px-3 py-2.5 shadow-[0_18px_36px_rgba(148,163,184,0.14)] backdrop-blur">
                 <div
                   className={cx(

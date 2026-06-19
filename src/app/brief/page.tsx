@@ -1,6 +1,7 @@
 import { BriefWorkspace } from "@/components/brief-workspace";
 import { getReadableOfficeModules, requireOfficeModule } from "@/lib/auth";
 import { getBtImportDayOverview } from "@/lib/bt-import-days";
+import { getActiveSiteCodeOrDefault } from "@/lib/sites";
 import { getBriefAssignmentOptions } from "@/lib/support-journee";
 import { getSupportWeatherBundle } from "@/lib/weather";
 
@@ -13,11 +14,12 @@ type BriefPageProps = {
 export default async function BriefPage({ searchParams }: BriefPageProps) {
   const auth = await requireOfficeModule("brief");
   const allowedModules = getReadableOfficeModules(auth);
+  const activeSiteCode = await getActiveSiteCodeOrDefault();
   const resolvedSearchParams = await searchParams;
   const selectedDate = resolvedSearchParams?.date ?? new Date().toISOString().slice(0, 10);
   const [data, technicians, weatherBundle] = await Promise.all([
-    getBtImportDayOverview(resolvedSearchParams?.date),
-    getBriefAssignmentOptions(),
+    getBtImportDayOverview(resolvedSearchParams?.date, activeSiteCode),
+    getBriefAssignmentOptions(activeSiteCode),
     getSupportWeatherBundle(selectedDate),
   ]);
   const headerDateTimeLabel = new Intl.DateTimeFormat("fr-FR", {
@@ -33,6 +35,7 @@ export default async function BriefPage({ searchParams }: BriefPageProps) {
 
   return (
     <BriefWorkspace
+      activeSiteCode={activeSiteCode}
       allowedModules={allowedModules}
       data={data}
       headerDateTimeLabel={headerDateTimeLabel}

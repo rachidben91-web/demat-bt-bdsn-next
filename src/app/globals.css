@@ -95,10 +95,11 @@ a {
   }
 
   .support-print-header {
-    align-items: flex-start;
+    align-items: center;
     border-bottom: 2px solid #1e40af;
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) minmax(260px, 1.25fr) minmax(220px, 1fr);
+    column-gap: 12px;
     margin-bottom: 8px;
     padding-bottom: 8px;
   }
@@ -136,6 +137,31 @@ a {
   .support-print-header p {
     font-size: 10px;
     margin: 3px 0 0;
+  }
+
+  .support-print-date-block {
+    align-self: center;
+    justify-self: center;
+    min-width: 260px;
+    text-align: center;
+  }
+
+  .support-print-date {
+    color: #111827;
+    font-size: 22px !important;
+    font-weight: 800;
+    line-height: 1.08;
+    margin: 0 !important;
+    text-transform: capitalize;
+  }
+
+  .support-print-week {
+    color: #1e40af;
+    font-size: 12px !important;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    margin-top: 3px !important;
+    text-transform: uppercase;
   }
 
   .support-print-meta {

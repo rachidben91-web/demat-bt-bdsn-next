@@ -25,9 +25,11 @@ import { openPdfDocumentFromUrl } from "@/lib/pdf-import/pdf-viewer";
 import type { ExtractedBt } from "@/lib/pdf-import/types";
 import { DOC_TYPES_CONFIG } from "@/lib/pdf-import/ui-config";
 import type { OfficeModuleKey } from "@/lib/office-access";
+import type { SiteCode } from "@/lib/site-options";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type BriefWorkspaceProps = {
+  activeSiteCode?: SiteCode | null;
   allowedModules?: OfficeModuleKey[];
   data: BtImportDayOverview;
   headerDateTimeLabel: string;
@@ -234,6 +236,7 @@ function getBriefWorkflowMeta(bt: ExtractedBt) {
 }
 
 export function BriefWorkspace({
+  activeSiteCode,
   allowedModules = [],
   data,
   headerDateTimeLabel,
@@ -941,6 +944,7 @@ export function BriefWorkspace({
       <div className="mx-auto max-w-[2360px]">
         <AppShellHeader
           activeModule="brief"
+          activeSiteCode={activeSiteCode}
           allowedModules={allowedModules}
           headerDateTimeLabel={headerDateTimeLabel}
           isSuperAdmin={isSuperAdmin}

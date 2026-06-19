@@ -1,6 +1,7 @@
 "use server";
 
 import { requireOfficeWriteModule } from "@/lib/auth";
+import { getActiveSiteCodeOrDefault } from "@/lib/sites";
 import { createServerSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/server";
 import { refresh } from "next/cache";
 
@@ -32,6 +33,7 @@ type TechnicianSeedRow = {
   id: string;
   ptc: boolean;
   ptd: boolean;
+  site_code: string | null;
   sort_order: number;
 };
 
@@ -79,11 +81,13 @@ function buildActivityCode(label: string) {
 
 async function requireAdminSupabase() {
   const auth = await requireOfficeWriteModule("support_journee");
+  const activeSiteCode = await getActiveSiteCodeOrDefault();
 
   if (!isSupabaseConfigured()) {
     return {
       supabase: null,
       userEmail: auth.user?.email ?? null,
+      siteCode: activeSiteCode,
     };
   }
 
@@ -96,6 +100,7 @@ async function requireAdminSupabase() {
   return {
     supabase: await createServerSupabaseClient(),
     userEmail,
+    siteCode: activeSiteCode,
   };
 }
 
@@ -115,6 +120,7 @@ function historyValue(value: string | null) {
 
 async function getAuthorizedContext(dayId: string) {
   const auth = await requireOfficeWriteModule("support_journee");
+  const activeSiteCode = await getActiveSiteCodeOrDefault();
 
   if (!isSupabaseConfigured()) {
     return {
@@ -133,8 +139,9 @@ async function getAuthorizedContext(dayId: string) {
   const supabase = await createServerSupabaseClient();
   const { data: day, error } = await supabase
     .from("support_days")
-    .select("id, status, locked_by, locked_at")
+    .select("id, status, locked_by, locked_at, site_code")
     .eq("id", dayId)
+    .eq("site_code", activeSiteCode)
     .maybeSingle();
 
   if (error || !day) {
@@ -181,6 +188,7 @@ async function getOrCreateSupportDayContext(input: { dayId: string | null; dayDa
   }
 
   const auth = await requireOfficeWriteModule("support_journee");
+  const activeSiteCode = await getActiveSiteCodeOrDefault();
 
   if (!isSupabaseConfigured()) {
     return {
@@ -199,8 +207,9 @@ async function getOrCreateSupportDayContext(input: { dayId: string | null; dayDa
   const supabase = await createServerSupabaseClient();
   const { data: existingDay, error: existingDayError } = await supabase
     .from("support_days")
-    .select("id, status, locked_by, locked_at")
+    .select("id, status, locked_by, locked_at, site_code")
     .eq("day_date", input.dayDate)
+    .eq("site_code", activeSiteCode)
     .maybeSingle();
 
   if (existingDayError) {
@@ -219,6 +228,7 @@ async function getOrCreateSupportDayContext(input: { dayId: string | null; dayDa
     .from("support_days")
     .insert({
       day_date: input.dayDate,
+      site_code: activeSiteCode,
       week_label: formatWeekLabel(input.dayDate),
       status: "draft",
       weather_note: null,
@@ -228,7 +238,7 @@ async function getOrCreateSupportDayContext(input: { dayId: string | null; dayDa
       locked_by: null,
       locked_at: null,
     })
-    .select("id, status, locked_by, locked_at")
+    .select("id, status, locked_by, locked_at, site_code")
     .single();
 
   if (insertedDayError || !insertedDay) {
@@ -237,8 +247,9 @@ async function getOrCreateSupportDayContext(input: { dayId: string | null; dayDa
 
   const { data: technicians, error: techniciansError } = await supabase
     .from("technicians")
-    .select("id, ptc, ptd, sort_order")
+    .select("id, ptc, ptd, site_code, sort_order")
     .eq("active", true)
+    .eq("site_code", activeSiteCode)
     .order("sort_order", { ascending: true });
 
   if (techniciansError) {
@@ -416,7 +427,8 @@ export async function saveSupportDayAssignments(
     const { data: activities, error: activitiesError } = await context.supabase
       .from("activity_definitions")
       .select("id, label")
-      .eq("active", true);
+      .eq("active", true)
+      .eq("site_code", context.day.site_code);
 
     if (activitiesError) {
       throw activitiesError;
@@ -432,9 +444,10 @@ export async function saveSupportDayAssignments(
     const { data: currentEntries, error: currentEntriesError } = await context.supabase
       .from("support_day_entries")
       .select(
-        "id, technician_id, activity_id, observation, brief_agency, brief_remote, debrief_agency, debrief_remote, gtv",
+        "id, technician_id, activity_id, observation, brief_agency, brief_remote, debrief_agency, debrief_remote, gtv, technicians!inner(site_code)",
       )
-      .eq("support_day_id", dayId);
+      .eq("support_day_id", dayId)
+      .eq("technicians.site_code", context.day.site_code);
 
     if (currentEntriesError) {
       throw currentEntriesError;
@@ -647,7 +660,8 @@ export async function createActivityDefinition(input: {
 
     const { data: existingActivities, error: existingError } = await context.supabase
       .from("activity_definitions")
-      .select("code, label, display_order");
+      .select("code, label, display_order")
+      .eq("site_code", context.siteCode);
 
     if (existingError) {
       throw existingError;
@@ -683,6 +697,7 @@ export async function createActivityDefinition(input: {
       status: normalizeActivityStatus(input.status),
       display_order: nextDisplayOrder,
       active: true,
+      site_code: context.siteCode,
       required_technicians: input.showInDailyCheck
         ? normalizeRequiredTechnicians(input.requiredTechnicians)
         : null,
@@ -737,6 +752,7 @@ export async function updateActivityDefinition(input: {
     const { data: existingActivities, error: existingError } = await context.supabase
       .from("activity_definitions")
       .select("id, label")
+      .eq("site_code", context.siteCode)
       .neq("id", input.id);
 
     if (existingError) {
@@ -765,7 +781,8 @@ export async function updateActivityDefinition(input: {
           : null,
         show_in_daily_check: input.showInDailyCheck,
       })
-      .eq("id", input.id);
+      .eq("id", input.id)
+      .eq("site_code", context.siteCode);
 
     if (error) {
       throw error;
@@ -804,7 +821,8 @@ export async function deactivateActivityDefinition(
       .update({
         active: false,
       })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("site_code", context.siteCode);
 
     if (error) {
       throw error;

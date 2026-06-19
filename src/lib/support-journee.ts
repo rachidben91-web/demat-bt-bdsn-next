@@ -12,6 +12,7 @@ import {
   type DayWeatherZone,
   type HeaderWeatherZone,
 } from "@/lib/weather";
+import { matchesSite, type SiteCode } from "@/lib/site-options";
 
 export type ActivityStatus = "Present" | "Absent" | "Greve";
 
@@ -124,6 +125,7 @@ type TechnicianRow = {
   first_name: string;
   display_name: string;
   site: string;
+  site_code?: string | null;
   role: string;
   color: string | null;
   ptc: boolean;
@@ -152,11 +154,13 @@ type ActivityRow = {
   display_order: number;
   required_technicians: number | null;
   show_in_daily_check: boolean | null;
+  site_code?: string | null;
 };
 
 type SupportDayRow = {
   id: string;
   day_date: string;
+  site_code?: string | null;
   week_label: string | null;
   status: string;
   weather_note: string | null;
@@ -213,17 +217,36 @@ function isMissingDailyCheckColumnError(message: string | undefined) {
   );
 }
 
+function isMissingSiteCodeColumnError(message: string | undefined) {
+  return Boolean(message?.includes("site_code"));
+}
+
 async function fetchActivityDefinitionRows(
   supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  siteCode?: SiteCode,
 ): Promise<ActivityRow[]> {
+  const resolvedSiteCode = siteCode ?? "VLG";
   const extendedResult = await supabase
     .from("activity_definitions")
-    .select("id, code, label, color, status, display_order, required_technicians, show_in_daily_check")
+    .select("id, code, label, color, status, display_order, required_technicians, show_in_daily_check, site_code")
     .eq("active", true)
+    .eq("site_code", resolvedSiteCode)
     .order("display_order", { ascending: true });
 
   if (!extendedResult.error) {
     return (extendedResult.data ?? []) as ActivityRow[];
+  }
+
+  if (isMissingSiteCodeColumnError(extendedResult.error.message)) {
+    const legacyResult = await supabase
+      .from("activity_definitions")
+      .select("id, code, label, color, status, display_order, required_technicians, show_in_daily_check")
+      .eq("active", true)
+      .order("display_order", { ascending: true });
+
+    if (!legacyResult.error) {
+      return (legacyResult.data ?? []) as ActivityRow[];
+    }
   }
 
   if (!isMissingDailyCheckColumnError(extendedResult.error.message)) {
@@ -354,9 +377,11 @@ function buildResolvedFallbackSummary(
   };
 }
 
-export async function getSupportTechnicians(): Promise<TechnicianOption[]> {
+export async function getSupportTechnicians(siteCode?: SiteCode): Promise<TechnicianOption[]> {
   if (!isSupabaseConfigured()) {
-    return fallbackTechnicians;
+    return siteCode
+      ? fallbackTechnicians.filter((technician) => matchesSite(technician.site, siteCode))
+      : fallbackTechnicians;
   }
 
   try {
@@ -364,7 +389,7 @@ export async function getSupportTechnicians(): Promise<TechnicianOption[]> {
     const { data, error } = await supabase
       .from("technicians")
       .select(
-        "id, nni, last_name, first_name, display_name, site, role, color, ptc, ptd, sort_order, managers(name)",
+        "id, nni, last_name, first_name, display_name, site, site_code, role, color, ptc, ptd, sort_order, managers(name)",
       )
       .eq("active", true)
       .order("sort_order", { ascending: true });
@@ -373,26 +398,30 @@ export async function getSupportTechnicians(): Promise<TechnicianOption[]> {
       return fallbackTechnicians;
     }
 
-    return ((data ?? []) as TechnicianRow[]).map((item) => ({
-      id: item.id,
-      nni: item.nni,
-      name: item.display_name,
-      lastName: item.last_name,
-      firstName: item.first_name,
-      site: item.site,
-      manager: getManagerName(item.managers),
-      role: item.role,
-      color: item.color ?? "#94a3b8",
-      ptc: item.ptc,
-      ptd: item.ptd,
-    }));
+    return ((data ?? []) as TechnicianRow[])
+      .filter((item) => !siteCode || item.site_code === siteCode || matchesSite(item.site, siteCode))
+      .map((item) => ({
+        id: item.id,
+        nni: item.nni,
+        name: item.display_name,
+        lastName: item.last_name,
+        firstName: item.first_name,
+        site: item.site,
+        manager: getManagerName(item.managers),
+        role: item.role,
+        color: item.color ?? "#94a3b8",
+        ptc: item.ptc,
+        ptd: item.ptd,
+      }));
   } catch {
-    return fallbackTechnicians;
+    return siteCode
+      ? fallbackTechnicians.filter((technician) => matchesSite(technician.site, siteCode))
+      : fallbackTechnicians;
   }
 }
 
-export async function getBriefAssignmentOptions(): Promise<BriefAssignmentOption[]> {
-  const technicians = await getSupportTechnicians();
+export async function getBriefAssignmentOptions(siteCode?: SiteCode): Promise<BriefAssignmentOption[]> {
+  const technicians = await getSupportTechnicians(siteCode);
 
   if (!isSupabaseConfigured()) {
     return technicians.map((technician) => ({
@@ -533,7 +562,10 @@ function buildEmptyAssignments(technicians: TechnicianOption[]): DailyAssignment
   }));
 }
 
-export async function getSupportJourneeData(selectedDate?: string): Promise<SupportJourneeData> {
+export async function getSupportJourneeData(
+  selectedDate?: string,
+  siteCode?: SiteCode,
+): Promise<SupportJourneeData> {
   const resolvedDate = selectedDate ?? new Date().toISOString().slice(0, 10);
   const weatherBundle = await getSupportWeatherBundle(resolvedDate).catch(() => ({
     generatedAtLabel: "Météo indisponible",
@@ -544,8 +576,13 @@ export async function getSupportJourneeData(selectedDate?: string): Promise<Supp
   const fallback = fallbackData();
 
   if (!isSupabaseConfigured()) {
+    const technicians = siteCode
+      ? fallback.technicians.filter((technician) => matchesSite(technician.site, siteCode))
+      : fallback.technicians;
+
     return {
       ...fallback,
+      technicians,
       headerWeather: {
         generatedAtLabel: weatherBundle.generatedAtLabel,
         zones: weatherBundle.headerZones,
@@ -571,17 +608,21 @@ export async function getSupportJourneeData(selectedDate?: string): Promise<Supp
       supabase
         .from("technicians")
         .select(
-          "id, nni, last_name, first_name, display_name, site, role, color, ptc, ptd, sort_order, managers(name)",
+          "id, nni, last_name, first_name, display_name, site, site_code, role, color, ptc, ptd, sort_order, managers(name)",
         )
         .eq("active", true)
         .order("sort_order", { ascending: true }),
-      fetchActivityDefinitionRows(supabase),
-      supabase.from("support_days").select("*", { count: "exact", head: true }),
+      fetchActivityDefinitionRows(supabase, siteCode),
+      supabase
+        .from("support_days")
+        .select("*", { count: "exact", head: true })
+        .eq("site_code", siteCode ?? "VLG"),
       supabase
         .from("support_days")
         .select(
-          "id, day_date, week_label, status, weather_note, server_label, global_observation, last_modified_by, last_modified_at, locked_by, locked_at",
+          "id, day_date, site_code, week_label, status, weather_note, server_label, global_observation, last_modified_by, last_modified_at, locked_by, locked_at",
         )
+        .eq("site_code", siteCode ?? "VLG")
         .order("day_date", { ascending: false }),
     ]);
 
@@ -605,19 +646,21 @@ export async function getSupportJourneeData(selectedDate?: string): Promise<Supp
       };
     }
 
-    const technicians = ((techniciansResult.data ?? []) as TechnicianRow[]).map((item) => ({
-      id: item.id,
-      nni: item.nni,
-      name: item.display_name,
-      lastName: item.last_name,
-      firstName: item.first_name,
-      site: item.site,
-      manager: getManagerName(item.managers),
-      role: item.role,
-      color: item.color ?? "#94a3b8",
-      ptc: item.ptc,
-      ptd: item.ptd,
-    }));
+    const technicians = ((techniciansResult.data ?? []) as TechnicianRow[])
+      .filter((item) => !siteCode || item.site_code === siteCode || matchesSite(item.site, siteCode))
+      .map((item) => ({
+        id: item.id,
+        nni: item.nni,
+        name: item.display_name,
+        lastName: item.last_name,
+        firstName: item.first_name,
+        site: item.site,
+        manager: getManagerName(item.managers),
+        role: item.role,
+        color: item.color ?? "#94a3b8",
+        ptc: item.ptc,
+        ptd: item.ptd,
+      }));
 
     const activityDefinitions = activityRows.map((item) => ({
       id: item.id,
@@ -636,8 +679,9 @@ export async function getSupportJourneeData(selectedDate?: string): Promise<Supp
       ? await supabase
           .from("support_day_entries")
           .select(
-            "support_day_id, id, technician_id, activity_id, work_mode, observation, brief_agency, brief_remote, debrief_agency, debrief_remote, gtv, display_order",
+            "support_day_id, id, technician_id, activity_id, work_mode, observation, brief_agency, brief_remote, debrief_agency, debrief_remote, gtv, display_order, technicians!inner(site_code)",
           )
+          .eq("technicians.site_code", siteCode ?? "VLG")
           .in(
             "support_day_id",
             supportDays.map((item) => item.id),
@@ -652,11 +696,12 @@ export async function getSupportJourneeData(selectedDate?: string): Promise<Supp
       .filter((entry) => (supportDay ? entry.support_day_id === supportDay.id : false))
       .sort((left, right) => left.display_order - right.display_order);
     const technicianById = new Map(technicians.map((item) => [item.id, item]));
+    const siteEntries = entries.filter((entry) => technicianById.has(entry.technician_id));
     const activityById = new Map(
       activityRows.map((item) => [item.id, item]),
     );
 
-    const persistedAssignments = entries.map((entry, index) => {
+    const persistedAssignments = siteEntries.map((entry, index) => {
       const technician = technicianById.get(entry.technician_id);
       const activity = entry.activity_id ? activityById.get(entry.activity_id) : null;
       const workMode =
@@ -841,7 +886,7 @@ export async function getSupportJourneeData(selectedDate?: string): Promise<Supp
         absents: counts.absents,
         greve: counts.greve,
         totalDays: supportDaysCountResult.count ?? 0,
-        totalRows: supportDay ? entries.length : technicians.length,
+        totalRows: supportDay ? siteEntries.length : technicians.length,
         topActivity:
           topActivityCount > 0 ? `${topActivity} (${topActivityCount})` : "Aucune",
       },
@@ -865,8 +910,13 @@ export async function getSupportJourneeData(selectedDate?: string): Promise<Supp
       source: "supabase",
     };
   } catch {
+    const technicians = siteCode
+      ? fallback.technicians.filter((technician) => matchesSite(technician.site, siteCode))
+      : fallback.technicians;
+
     return {
       ...fallback,
+      technicians,
       headerWeather: {
         generatedAtLabel: weatherBundle.generatedAtLabel,
         zones: weatherBundle.headerZones,

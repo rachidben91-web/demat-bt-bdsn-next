@@ -3,6 +3,7 @@ import {
   createServerSupabaseClient,
   isSupabaseConfigured,
 } from "@/lib/supabase/server";
+import { matchesSite, type SiteCode } from "@/lib/site-options";
 
 const MESSAGE_ATTACHMENT_BUCKET = "office-message-attachments";
 
@@ -241,7 +242,7 @@ async function signAttachments(
   return signed;
 }
 
-export async function getMessagingTechnicianTargets(): Promise<MessagingTechnicianTarget[]> {
+export async function getMessagingTechnicianTargets(siteCode?: SiteCode): Promise<MessagingTechnicianTarget[]> {
   if (!isSupabaseConfigured()) {
     return [];
   }
@@ -249,7 +250,8 @@ export async function getMessagingTechnicianTargets(): Promise<MessagingTechnici
   const supabase = await getServerReader();
   const { data, error } = await supabase
     .from("technicians")
-    .select("id, display_name, site, manager_id, managers(name), sort_order")
+    .select("id, display_name, site, site_code, manager_id, managers(name), sort_order")
+    .eq("site_code", siteCode ?? "VLG")
     .order("sort_order", { ascending: true })
     .order("display_name", { ascending: true });
 
@@ -257,7 +259,9 @@ export async function getMessagingTechnicianTargets(): Promise<MessagingTechnici
     return [];
   }
 
-  return data.map((row) => {
+  return data
+    .filter((row) => !siteCode || row.site_code === siteCode || matchesSite(String(row.site ?? ""), siteCode))
+    .map((row) => {
     const managers = (row.managers ?? null) as ManagerRelationRow;
 
     return {
@@ -270,7 +274,12 @@ export async function getMessagingTechnicianTargets(): Promise<MessagingTechnici
             ? managers.name
             : null,
       name: String(row.display_name ?? ""),
-      site: typeof row.site === "string" && row.site.trim() ? row.site : null,
+      site:
+        typeof row.site_code === "string" && row.site_code.trim()
+          ? row.site_code
+          : typeof row.site === "string" && row.site.trim()
+            ? row.site
+            : null,
     };
   });
 }

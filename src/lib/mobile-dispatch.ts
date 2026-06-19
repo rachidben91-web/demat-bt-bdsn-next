@@ -3,6 +3,7 @@ import {
   createServerSupabaseClient,
   isSupabaseConfigured,
 } from "@/lib/supabase/server";
+import type { SiteCode } from "@/lib/site-options";
 
 export type DepartureInstruction = "agency" | "direct" | "confirm";
 
@@ -192,6 +193,7 @@ export async function getLatestMobileDispatchForTechnician(
 export async function getMobileDispatchStatusesForMissionDate(
   missionDate: string,
   technicianIds: string[] = [],
+  siteCode?: SiteCode,
 ): Promise<Record<string, MobileDispatchStatusSnapshot>> {
   if (!isSupabaseConfigured() || !missionDate) {
     return {};
@@ -204,6 +206,10 @@ export async function getMobileDispatchStatusesForMissionDate(
       "acknowledged_at, acknowledged_by_email, departure_instruction, published_at, technician_id, technician_name",
     )
     .eq("mission_date", missionDate);
+
+  if (siteCode) {
+    query = query.eq("site_code", siteCode);
+  }
 
   if (technicianIds.length > 0) {
     query = query.in("technician_id", technicianIds);

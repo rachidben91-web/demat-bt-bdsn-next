@@ -16,6 +16,7 @@ import { AppShellHeader } from "@/components/app-shell-header";
 import { getModuleTheme } from "@/lib/module-theme";
 import { supportTabs } from "@/data/support-journee";
 import type { OfficeModuleKey } from "@/lib/office-access";
+import type { SiteCode } from "@/lib/site-options";
 import type {
   ActivityOption,
   AvailableSupportDay,
@@ -172,6 +173,7 @@ function serializeAssignments(assignments: EditableAssignment[]) {
 }
 
 type SupportJourneeWorkspaceProps = {
+  activeSiteCode?: SiteCode | null;
   allowedModules?: OfficeModuleKey[];
   data: SupportJourneeData;
   isSuperAdmin?: boolean;
@@ -285,6 +287,7 @@ function formatTechnicianLabel(count: number) {
 }
 
 export function SupportJourneeWorkspace({
+  activeSiteCode,
   allowedModules = [],
   data,
   isSuperAdmin = false,
@@ -1177,10 +1180,11 @@ export function SupportJourneeWorkspace({
             <div>
               <p className="support-print-kicker">Support journée</p>
               <h1>Liste agents / activités</h1>
-              <p>
-                {supportSummary.dateLabel} - {supportSummary.weekLabel}
-              </p>
             </div>
+          </div>
+          <div className="support-print-date-block">
+            <p className="support-print-date">{supportSummary.dateLabel}</p>
+            <p className="support-print-week">{supportSummary.weekLabel}</p>
           </div>
           <div className="support-print-meta">
             <p>Agents : {assignments.length}</p>
@@ -1255,6 +1259,7 @@ export function SupportJourneeWorkspace({
       <div className="support-screen-root mx-auto max-w-[2360px]">
         <AppShellHeader
           activeModule="support"
+          activeSiteCode={activeSiteCode}
           allowedModules={allowedModules}
           isSuperAdmin={isSuperAdmin}
           role={role}

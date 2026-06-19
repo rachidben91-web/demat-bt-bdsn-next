@@ -5,6 +5,7 @@ import type {
   ExtractedBtDocument,
   ExtractedTeamMember,
 } from "@/lib/pdf-import/types";
+import type { SiteCode } from "@/lib/site-options";
 import { createServerSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/server";
 
 export type BtImportDaySummary = {
@@ -183,6 +184,7 @@ function mapEntryRow(row: BtImportEntryRow): ExtractedBt {
 
 export async function getBtImportDayOverview(
   selectedDate?: string,
+  siteCode?: SiteCode,
 ): Promise<BtImportDayOverview> {
   if (!isSupabaseConfigured()) {
     return {
@@ -194,12 +196,18 @@ export async function getBtImportDayOverview(
   }
 
   const supabase = await createServerSupabaseClient();
-  const { data: daysData, error: daysError } = await supabase
+  let daysQuery = supabase
     .from("bt_import_days")
     .select(
       "id, day_date, site_code, source_pdf_name, source_pdf_storage_path, page_count, bt_count, imported_by_email, imported_at, updated_at",
     )
     .order("day_date", { ascending: false });
+
+  if (siteCode) {
+    daysQuery = daysQuery.eq("site_code", siteCode);
+  }
+
+  const { data: daysData, error: daysError } = await daysQuery;
 
   if (daysError) {
     return {

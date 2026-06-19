@@ -1,4 +1,5 @@
 import { createServerSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/server";
+import { matchesSite, type SiteCode } from "@/lib/site-options";
 
 export type ManagerOption = {
   id: string;
@@ -32,6 +33,7 @@ export type TechnicianAdminRow = {
 type ManagerRow = {
   id: string;
   name: string;
+  site_code?: string | null;
 };
 
 type TechnicianRow = {
@@ -42,6 +44,7 @@ type TechnicianRow = {
   display_name: string;
   manager_id: string | null;
   site: string;
+  site_code?: string | null;
   role: string;
   color: string | null;
   ptc: boolean;
@@ -59,7 +62,7 @@ function getManagerName(managers: TechnicianRow["managers"]) {
   return managers?.name ?? "Non assigne";
 }
 
-export async function getManagerOptions(): Promise<ManagerOption[]> {
+export async function getManagerOptions(siteCode?: SiteCode): Promise<ManagerOption[]> {
   if (!isSupabaseConfigured()) {
     return [];
   }
@@ -67,20 +70,26 @@ export async function getManagerOptions(): Promise<ManagerOption[]> {
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase
     .from("managers")
-    .select("id, name")
+    .select("id, name, site_code")
+    .eq("site_code", siteCode ?? "VLG")
     .order("name", { ascending: true });
 
   if (error) {
     return [];
   }
 
-  return ((data ?? []) as ManagerRow[]).map((manager) => ({
+  const managers = ((data ?? []) as ManagerRow[]).map((manager) => ({
     id: manager.id,
     name: manager.name,
   }));
+
+  return managers;
 }
 
-export async function getTechnicianAdminRows(search?: string): Promise<TechnicianAdminRow[]> {
+export async function getTechnicianAdminRows(
+  search?: string,
+  siteCode?: SiteCode,
+): Promise<TechnicianAdminRow[]> {
   if (!isSupabaseConfigured()) {
     return [];
   }
@@ -89,8 +98,9 @@ export async function getTechnicianAdminRows(search?: string): Promise<Technicia
   let query = supabase
     .from("technicians")
     .select(
-      "id, nni, last_name, first_name, display_name, manager_id, site, role, color, ptc, ptd, sort_order, active, managers(name)",
+      "id, nni, last_name, first_name, display_name, manager_id, site, site_code, role, color, ptc, ptd, sort_order, active, managers(name)",
     )
+    .eq("site_code", siteCode ?? "VLG")
     .order("sort_order", { ascending: true });
 
   const normalizedSearch = search?.trim();
@@ -107,22 +117,24 @@ export async function getTechnicianAdminRows(search?: string): Promise<Technicia
     return [];
   }
 
-  return ((data ?? []) as TechnicianRow[]).map((item) => ({
-    id: item.id,
-    nni: item.nni,
-    lastName: item.last_name,
-    firstName: item.first_name,
-    displayName: item.display_name,
-    managerId: item.manager_id,
-    managerName: getManagerName(item.managers),
-    site: item.site,
-    role: item.role,
-    color: item.color ?? "#2563eb",
-    ptc: item.ptc,
-    ptd: item.ptd,
-    sortOrder: item.sort_order,
-    active: item.active,
-  }));
+  return ((data ?? []) as TechnicianRow[])
+    .filter((item) => !siteCode || item.site_code === siteCode || matchesSite(item.site, siteCode))
+    .map((item) => ({
+      id: item.id,
+      nni: item.nni,
+      lastName: item.last_name,
+      firstName: item.first_name,
+      displayName: item.display_name,
+      managerId: item.manager_id,
+      managerName: getManagerName(item.managers),
+      site: item.site,
+      role: item.role,
+      color: item.color ?? "#2563eb",
+      ptc: item.ptc,
+      ptd: item.ptd,
+      sortOrder: item.sort_order,
+      active: item.active,
+    }));
 }
 
 export async function getTechnicianById(id: string): Promise<TechnicianAdminRow | null> {
@@ -134,7 +146,7 @@ export async function getTechnicianById(id: string): Promise<TechnicianAdminRow 
   const { data, error } = await supabase
     .from("technicians")
     .select(
-      "id, nni, last_name, first_name, display_name, manager_id, site, role, color, ptc, ptd, sort_order, active, managers(name)",
+      "id, nni, last_name, first_name, display_name, manager_id, site, site_code, role, color, ptc, ptd, sort_order, active, managers(name)",
     )
     .eq("id", id)
     .maybeSingle();

@@ -6,9 +6,11 @@ import { ModuleIcon } from "@/components/module-icon";
 import type { MessagingTechnicianTarget, OfficeMessageSummary } from "@/lib/messaging";
 import { getModuleTheme } from "@/lib/module-theme";
 import type { OfficeModuleKey } from "@/lib/office-access";
+import type { SiteCode } from "@/lib/site-options";
 import type { DailyAssignmentRow, SupportJourneeData } from "@/lib/support-journee";
 
 type MessagingWorkspaceProps = {
+  activeSiteCode?: SiteCode | null;
   allowedModules?: OfficeModuleKey[];
   data: SupportJourneeData;
   headerDateTimeLabel: string;
@@ -97,6 +99,7 @@ function buildConversationRows(assignments: DailyAssignmentRow[]) {
 }
 
 export function MessagingWorkspace({
+  activeSiteCode,
   allowedModules = [],
   data,
   headerDateTimeLabel,
@@ -143,6 +146,7 @@ export function MessagingWorkspace({
       <div className="mx-auto max-w-[2360px]">
         <AppShellHeader
           activeModule="messagerie"
+          activeSiteCode={activeSiteCode}
           allowedModules={allowedModules}
           headerDateTimeLabel={headerDateTimeLabel}
           isSuperAdmin={isSuperAdmin}

@@ -1,4 +1,5 @@
 import { createServerSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/server";
+import type { SiteCode } from "@/lib/site-options";
 import {
   createEmptyOfficeModulePermissions,
   normalizeOfficeModulePermissions,
@@ -10,18 +11,21 @@ import {
 export type { OfficeAccountAdminRow } from "@/lib/office-access";
 
 type OfficeAccountQueryRow = OfficeAccountRow & {
-  technicians: { display_name: string | null } | { display_name: string | null }[] | null;
+  technicians:
+    | { display_name: string | null; site_code: string | null }
+    | { display_name: string | null; site_code: string | null }[]
+    | null;
   office_module_access:
     | { module_key: string; permission_level: string }[]
     | null;
 };
 
-function getTechnicianDisplayName(technicians: OfficeAccountQueryRow["technicians"]) {
+function getTechnician(technicians: OfficeAccountQueryRow["technicians"]) {
   if (Array.isArray(technicians)) {
-    return technicians[0]?.display_name ?? null;
+    return technicians[0] ?? null;
   }
 
-  return technicians?.display_name ?? null;
+  return technicians ?? null;
 }
 
 function mapModulePermissions(
@@ -39,6 +43,8 @@ function mapModulePermissions(
 }
 
 function mapOfficeAccountRow(item: OfficeAccountQueryRow): OfficeAccountAdminRow {
+  const technician = getTechnician(item.technicians);
+
   return {
     id: item.id,
     authUserId: item.auth_user_id,
@@ -46,7 +52,8 @@ function mapOfficeAccountRow(item: OfficeAccountQueryRow): OfficeAccountAdminRow
     loginIdentifier: item.login_identifier,
     fullName: item.full_name,
     technicianId: item.technician_id,
-    technicianDisplayName: getTechnicianDisplayName(item.technicians),
+    technicianDisplayName: technician?.display_name ?? null,
+    technicianSiteCode: technician?.site_code ?? null,
     accountStatus: item.account_status,
     firstLogin: item.first_login,
     passwordChanged: item.password_changed,
@@ -58,7 +65,7 @@ function mapOfficeAccountRow(item: OfficeAccountQueryRow): OfficeAccountAdminRow
   };
 }
 
-export async function getOfficeAccounts(): Promise<OfficeAccountAdminRow[]> {
+export async function getOfficeAccounts(siteCode?: SiteCode): Promise<OfficeAccountAdminRow[]> {
   if (!isSupabaseConfigured()) {
     return [];
   }
@@ -67,7 +74,7 @@ export async function getOfficeAccounts(): Promise<OfficeAccountAdminRow[]> {
   const { data, error } = await supabase
     .from("office_accounts")
     .select(
-      "id, auth_user_id, email, login_identifier, full_name, technician_id, account_status, first_login, password_changed, can_access_office_app, can_access_terrain_app, office_role, terrain_role, created_at, updated_at, technicians(display_name), office_module_access(module_key, permission_level)",
+      "id, auth_user_id, email, login_identifier, full_name, technician_id, account_status, first_login, password_changed, can_access_office_app, can_access_terrain_app, office_role, terrain_role, created_at, updated_at, technicians(display_name, site_code), office_module_access(module_key, permission_level)",
     )
     .order("full_name", { ascending: true });
 
@@ -75,7 +82,13 @@ export async function getOfficeAccounts(): Promise<OfficeAccountAdminRow[]> {
     return [];
   }
 
-  return ((data ?? []) as OfficeAccountQueryRow[]).map(mapOfficeAccountRow);
+  const accounts = ((data ?? []) as OfficeAccountQueryRow[]).map(mapOfficeAccountRow);
+
+  if (!siteCode) {
+    return accounts;
+  }
+
+  return accounts.filter((account) => account.technicianSiteCode === siteCode);
 }
 
 export async function getOfficeAccountById(
@@ -89,7 +102,7 @@ export async function getOfficeAccountById(
   const { data, error } = await supabase
     .from("office_accounts")
     .select(
-      "id, auth_user_id, email, login_identifier, full_name, technician_id, account_status, first_login, password_changed, can_access_office_app, can_access_terrain_app, office_role, terrain_role, created_at, updated_at, technicians(display_name), office_module_access(module_key, permission_level)",
+      "id, auth_user_id, email, login_identifier, full_name, technician_id, account_status, first_login, password_changed, can_access_office_app, can_access_terrain_app, office_role, terrain_role, created_at, updated_at, technicians(display_name, site_code), office_module_access(module_key, permission_level)",
     )
     .eq("id", id)
     .maybeSingle();
@@ -112,7 +125,7 @@ export async function getOfficeAccountByTechnicianId(
   const { data, error } = await supabase
     .from("office_accounts")
     .select(
-      "id, auth_user_id, email, login_identifier, full_name, technician_id, account_status, first_login, password_changed, can_access_office_app, can_access_terrain_app, office_role, terrain_role, created_at, updated_at, technicians(display_name), office_module_access(module_key, permission_level)",
+      "id, auth_user_id, email, login_identifier, full_name, technician_id, account_status, first_login, password_changed, can_access_office_app, can_access_terrain_app, office_role, terrain_role, created_at, updated_at, technicians(display_name, site_code), office_module_access(module_key, permission_level)",
     )
     .eq("technician_id", technicianId)
     .maybeSingle();
@@ -161,14 +174,15 @@ export type TechnicianAccessCandidate = {
   active: boolean;
 };
 
-export async function getTechniciansEligibleForOfficeAccess(): Promise<
+export async function getTechniciansEligibleForOfficeAccess(siteCode?: SiteCode): Promise<
   TechnicianAccessCandidate[]
 > {
-  return getTechniciansForOfficeAccess();
+  return getTechniciansForOfficeAccess(null, siteCode);
 }
 
 export async function getTechniciansForOfficeAccess(
   currentTechnicianId?: string | null,
+  siteCode?: SiteCode,
 ): Promise<TechnicianAccessCandidate[]> {
   if (!isSupabaseConfigured()) {
     return [];
@@ -180,6 +194,7 @@ export async function getTechniciansForOfficeAccess(
       supabase
         .from("technicians")
         .select("id, display_name, nni, role, active")
+        .eq("site_code", siteCode ?? "VLG")
         .order("display_name", { ascending: true }),
       supabase
         .from("office_accounts")

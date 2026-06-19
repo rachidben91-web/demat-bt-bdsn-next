@@ -7,9 +7,11 @@ import { ModuleIcon } from "@/components/module-icon";
 import { getModuleTheme } from "@/lib/module-theme";
 import type { BtImportDayOverview } from "@/lib/bt-import-days";
 import type { OfficeModuleKey } from "@/lib/office-access";
+import type { SiteCode } from "@/lib/site-options";
 import type { SupportJourneeData } from "@/lib/support-journee";
 
 type DashboardWorkspaceProps = {
+  activeSiteCode?: SiteCode | null;
   allowedModules?: OfficeModuleKey[];
   btOverview: BtImportDayOverview;
   currentDateLabel: string;
@@ -25,7 +27,7 @@ function cx(...parts: Array<string | false | null | undefined>) {
 }
 
 export function DashboardWorkspace(props: DashboardWorkspaceProps) {
-  const { allowedModules = [], currentDateLabel, headerDateTimeLabel, isSuperAdmin = false, role, userEmail, supportData } = props;
+  const { activeSiteCode, allowedModules = [], currentDateLabel, headerDateTimeLabel, isSuperAdmin = false, role, userEmail, supportData } = props;
   const dashboardTheme = getModuleTheme("dashboard");
   const moduleCards = [
     {
@@ -112,6 +114,7 @@ export function DashboardWorkspace(props: DashboardWorkspaceProps) {
       <div className="mx-auto max-w-[2360px]">
         <AppShellHeader
           activeModule="dashboard"
+          activeSiteCode={activeSiteCode}
           allowedModules={allowedModules}
           headerDateTimeLabel={headerDateTimeLabel}
           isSuperAdmin={isSuperAdmin}

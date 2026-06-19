@@ -10,6 +10,7 @@ import {
 } from "@/lib/admin-office-accounts";
 import { getReadableOfficeModules, requireOfficeModule } from "@/lib/auth";
 import { getModuleTheme } from "@/lib/module-theme";
+import { getActiveSiteCodeOrDefault } from "@/lib/sites";
 import {
   OFFICE_ACCOUNT_STATUS_LABELS,
   OFFICE_ROLE_LABELS,
@@ -22,6 +23,7 @@ export default async function AdminAccessDetailsPage(
   const accessTheme = getModuleTheme("access");
   const auth = await requireOfficeModule("office_access");
   const allowedModules = getReadableOfficeModules(auth);
+  const activeSiteCode = await getActiveSiteCodeOrDefault();
   const params = await props.params;
   const account = await getOfficeAccountById(params.id);
 
@@ -29,13 +31,14 @@ export default async function AdminAccessDetailsPage(
     notFound();
   }
 
-  const technicians = await getTechniciansForOfficeAccess(account.technicianId);
+  const technicians = await getTechniciansForOfficeAccess(account.technicianId, activeSiteCode);
 
   return (
     <main className={`min-h-screen px-4 py-4 text-slate-900 sm:px-6 lg:px-8 ${accessTheme.pageBackgroundClassName}`}>
       <div className="mx-auto max-w-[2360px]">
         <AppShellHeader
           activeModule="access"
+          activeSiteCode={activeSiteCode}
           allowedModules={allowedModules}
           isSuperAdmin={auth.role === "admin"}
           role={auth.role ?? auth.officeAccount?.officeRole ?? null}

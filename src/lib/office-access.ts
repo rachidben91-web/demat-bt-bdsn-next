@@ -105,6 +105,7 @@ export type OfficeAccountAdminRow = {
   fullName: string;
   technicianId: string | null;
   technicianDisplayName: string | null;
+  technicianSiteCode: string | null;
   accountStatus: OfficeAccountStatus;
   firstLogin: boolean;
   passwordChanged: boolean;

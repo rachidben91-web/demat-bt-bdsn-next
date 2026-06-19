@@ -23,8 +23,10 @@ import {
   type DispatchStatus,
 } from "@/lib/referent-dispatch";
 import type { OfficeModuleKey } from "@/lib/office-access";
+import type { SiteCode } from "@/lib/site-options";
 
 type ReferentWorkspaceProps = {
+  activeSiteCode?: SiteCode | null;
   allowedModules?: OfficeModuleKey[];
   data: BtImportDayOverview;
   headerDateTimeLabel: string;
@@ -139,6 +141,7 @@ function getPublishedTimestamp(value: string | null | undefined) {
 }
 
 export function ReferentWorkspace({
+  activeSiteCode,
   allowedModules = [],
   data,
   headerDateTimeLabel,
@@ -295,6 +298,7 @@ export function ReferentWorkspace({
       <div className="mx-auto max-w-[2360px]">
         <AppShellHeader
           activeModule="referent"
+          activeSiteCode={activeSiteCode}
           allowedModules={allowedModules}
           headerDateTimeLabel={headerDateTimeLabel}
           isSuperAdmin={isSuperAdmin}
