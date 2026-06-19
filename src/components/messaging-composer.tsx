@@ -22,7 +22,7 @@ export function MessagingComposer({ sites, technicians }: MessagingComposerProps
   const [state, formAction, pending] = useActionState(sendOfficeMessageAction, initialState);
   const [targetType, setTargetType] = useState<MessagingTargetType>("agency");
   const [selectedManagerId, setSelectedManagerId] = useState("");
-  const [selectedSite, setSelectedSite] = useState(sites[0] ?? "");
+  const [selectedSite, setSelectedSite] = useState("");
   const [selectedAttachmentName, setSelectedAttachmentName] = useState<string | null>(null);
   const [selectedAttachmentSizeLabel, setSelectedAttachmentSizeLabel] = useState<string | null>(null);
 
@@ -40,6 +40,9 @@ export function MessagingComposer({ sites, technicians }: MessagingComposerProps
       .sort((left, right) => left.name.localeCompare(right.name, "fr"));
   }, [technicians]);
 
+  const selectedManagerName =
+    managerOptions.find((manager) => manager.id === selectedManagerId)?.name ?? "";
+
   const visibleTechnicians = useMemo(() => {
     let filteredTechnicians = technicians;
 
@@ -49,7 +52,7 @@ export function MessagingComposer({ sites, technicians }: MessagingComposerProps
       );
     }
 
-    if ((targetType === "technician" || targetType === "manager") && selectedSite) {
+    if (targetType === "manager" && selectedSite) {
       filteredTechnicians = filteredTechnicians.filter(
         (technician) => technician.site === selectedSite,
       );
@@ -80,8 +83,9 @@ export function MessagingComposer({ sites, technicians }: MessagingComposerProps
       <input
         name="target_manager_name"
         type="hidden"
-        value={managerOptions.find((manager) => manager.id === selectedManagerId)?.name ?? ""}
+        value={selectedManagerName}
       />
+      <input name="target_site" type="hidden" value={selectedSite} />
 
       <div className="flex items-start gap-3">
         <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-teal-600 text-white shadow-[0_14px_28px_rgba(13,148,136,0.20)]">
@@ -92,15 +96,14 @@ export function MessagingComposer({ sites, technicians }: MessagingComposerProps
             Composer
           </p>
           <p className="mt-2 text-sm leading-6 text-teal-950">
-            Envoie une consigne a toute l&apos;agence, un groupe ou un technicien precis.
+            Envoie une consigne a toute l&apos;agence, a un site, a un manager ou a un technicien precis.
           </p>
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-4 overflow-hidden rounded-2xl border border-teal-200 bg-white p-1 text-xs font-semibold text-slate-600">
+      <div className="mt-4 grid grid-cols-3 overflow-hidden rounded-2xl border border-teal-200 bg-white p-1 text-xs font-semibold text-slate-600">
         {[
           { label: "Agence", value: "agency" },
-          { label: "Groupe", value: "site" },
           { label: "Manager", value: "manager" },
           { label: "Technicien", value: "technician" },
         ].map((item) => (
@@ -117,16 +120,15 @@ export function MessagingComposer({ sites, technicians }: MessagingComposerProps
         ))}
       </div>
 
-      {targetType !== "agency" ? (
+      {targetType === "agency" ? (
         <label className="mt-4 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-          Groupe/site
+          Portee agence
           <select
             className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-medium normal-case tracking-normal text-slate-900 outline-none focus:border-teal-400"
-            name="target_site"
             onChange={(event) => setSelectedSite(event.target.value)}
             value={selectedSite}
           >
-            <option value="">Tous les sites</option>
+            <option value="">Toute l&apos;agence</option>
             {sites.map((site) => (
               <option key={site} value={site}>
                 {site}
@@ -137,21 +139,39 @@ export function MessagingComposer({ sites, technicians }: MessagingComposerProps
       ) : null}
 
       {targetType === "manager" ? (
-        <label className="mt-4 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-          Manager
-          <select
-            className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-medium normal-case tracking-normal text-slate-900 outline-none focus:border-teal-400"
-            onChange={(event) => setSelectedManagerId(event.target.value)}
-            value={selectedManagerId}
-          >
-            <option value="">Selectionner un manager</option>
-            {managerOptions.map((manager) => (
-              <option key={manager.id} value={manager.id}>
-                {manager.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <>
+          <label className="mt-4 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+            Filtre site
+            <select
+              className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-medium normal-case tracking-normal text-slate-900 outline-none focus:border-teal-400"
+              onChange={(event) => setSelectedSite(event.target.value)}
+              value={selectedSite}
+            >
+              <option value="">Tous les sites</option>
+              {sites.map((site) => (
+                <option key={site} value={site}>
+                  {site}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="mt-4 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+            Manager
+            <select
+              className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-medium normal-case tracking-normal text-slate-900 outline-none focus:border-teal-400"
+              onChange={(event) => setSelectedManagerId(event.target.value)}
+              value={selectedManagerId}
+            >
+              <option value="">Selectionner un manager</option>
+              {managerOptions.map((manager) => (
+                <option key={manager.id} value={manager.id}>
+                  {manager.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </>
       ) : null}
 
       {targetType === "technician" ? (
@@ -215,6 +235,20 @@ export function MessagingComposer({ sites, technicians }: MessagingComposerProps
               </p>
             ) : null}
           </div>
+        </div>
+      ) : null}
+
+      {targetType === "agency" ? (
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-3">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+            <UsersRound className="h-4 w-4" />
+            Techniciens concernes
+          </div>
+          <p className="mt-3 text-sm text-slate-600">
+            {selectedSite
+              ? `Le message sera envoye a tous les techniciens du site ${selectedSite}.`
+              : "Le message sera envoye a tous les techniciens avec acces terrain, tous sites confondus."}
+          </p>
         </div>
       ) : null}
 

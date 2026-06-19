@@ -248,12 +248,17 @@ export async function getMessagingTechnicianTargets(siteCode?: SiteCode): Promis
   }
 
   const supabase = await getServerReader();
-  const { data, error } = await supabase
+  let query = supabase
     .from("technicians")
     .select("id, display_name, site, site_code, manager_id, managers(name), sort_order")
-    .eq("site_code", siteCode ?? "VLG")
     .order("sort_order", { ascending: true })
     .order("display_name", { ascending: true });
+
+  if (siteCode) {
+    query = query.eq("site_code", siteCode);
+  }
+
+  const { data, error } = await query;
 
   if (error || !data) {
     return [];

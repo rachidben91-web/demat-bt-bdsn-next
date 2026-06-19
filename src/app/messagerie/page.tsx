@@ -17,7 +17,7 @@ export default async function MessageriePage({ searchParams }: MessageriePagePro
   const resolvedSearchParams = await searchParams;
   const [data, messageTargets, recentMessages] = await Promise.all([
     getSupportJourneeData(resolvedSearchParams?.date, activeSiteCode),
-    getMessagingTechnicianTargets(activeSiteCode),
+    getMessagingTechnicianTargets(),
     getRecentOfficeMessages({
       viewerOfficeAccountId: auth.officeAccount?.id ?? null,
       viewerRole: auth.role,

@@ -1,0 +1,1011 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DEMAT-BT V2 - Tutoriel modules</title>
+    <style>
+      :root {
+        --bg: #edf4fb;
+        --bg-soft: #f8fbff;
+        --surface: rgba(255, 255, 255, 0.92);
+        --surface-strong: #ffffff;
+        --border: rgba(148, 163, 184, 0.24);
+        --text: #0f172a;
+        --muted: #475569;
+        --muted-soft: #64748b;
+        --shadow: 0 24px 56px rgba(15, 23, 42, 0.1);
+        --radius-xl: 32px;
+        --radius-lg: 24px;
+        --radius-md: 18px;
+        --dashboard: #2563eb;
+        --support: #059669;
+        --referent: #7c3aed;
+        --brief: #0284c7;
+        --import: #e11d48;
+        --messagerie: #0f766e;
+        --admin: #4338ca;
+        --access: #d97706;
+        --terrain: #0f8d6c;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top left, rgba(190, 242, 230, 0.42), transparent 26%),
+          radial-gradient(circle at top right, rgba(191, 219, 254, 0.34), transparent 24%),
+          linear-gradient(180deg, #eef5fb 0%, #f8fbff 46%, #edf4fb 100%);
+        font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .page {
+        width: min(1240px, calc(100vw - 32px));
+        margin: 0 auto;
+        padding: 28px 0 56px;
+      }
+
+      .hero,
+      .panel,
+      .module {
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 251, 255, 0.94));
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(18px);
+      }
+
+      .hero {
+        border-radius: 34px;
+        padding: 28px;
+      }
+
+      .hero-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 24px;
+        align-items: flex-start;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .brand-badge {
+        width: 52px;
+        height: 52px;
+        border-radius: 16px;
+        background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
+        border: 1px solid rgba(191, 219, 254, 0.9);
+        display: grid;
+        place-items: center;
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--dashboard);
+      }
+
+      .eyebrow {
+        margin: 0 0 8px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: var(--dashboard);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(2.2rem, 4vw, 4.2rem);
+        line-height: 0.96;
+        letter-spacing: -0.06em;
+      }
+
+      .hero p {
+        margin: 14px 0 0;
+        max-width: 64ch;
+        color: var(--muted);
+        font-size: 1rem;
+        line-height: 1.8;
+      }
+
+      .hero-meta {
+        min-width: 250px;
+        border-radius: 24px;
+        border: 1px solid rgba(191, 219, 254, 0.9);
+        background: linear-gradient(180deg, rgba(248, 251, 255, 0.98), rgba(228, 237, 251, 0.96));
+        padding: 18px;
+      }
+
+      .hero-meta strong,
+      .stat strong,
+      .module-summary strong {
+        display: block;
+        font-size: 1.65rem;
+        letter-spacing: -0.05em;
+        margin-top: 8px;
+      }
+
+      .meta-label,
+      .stat-label,
+      .chip,
+      .module-kicker,
+      .step-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.2em;
+        font-weight: 700;
+      }
+
+      .hero-nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 22px;
+      }
+
+      .hero-nav a,
+      .toc a {
+        text-decoration: none;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border-radius: 999px;
+        padding: 11px 16px;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        background: rgba(255, 255, 255, 0.92);
+        color: var(--muted);
+        font-size: 0.94rem;
+        font-weight: 600;
+      }
+
+      .pill::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: currentColor;
+        opacity: 0.6;
+      }
+
+      .panel {
+        border-radius: var(--radius-xl);
+        padding: 24px;
+        margin-top: 18px;
+      }
+
+      .section-title {
+        margin: 0;
+        font-size: 1.8rem;
+        letter-spacing: -0.04em;
+      }
+
+      .section-copy {
+        margin: 10px 0 0;
+        color: var(--muted);
+        line-height: 1.8;
+      }
+
+      .stats,
+      .toc,
+      .module-grid,
+      .info-grid {
+        display: grid;
+        gap: 14px;
+      }
+
+      .stats {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        margin-top: 20px;
+      }
+
+      .stat {
+        border-radius: 22px;
+        background: var(--surface-strong);
+        border: 1px solid rgba(226, 232, 240, 0.9);
+        padding: 18px;
+        box-shadow: 0 14px 28px rgba(15, 23, 42, 0.05);
+      }
+
+      .stat p {
+        margin: 8px 0 0;
+        color: var(--muted-soft);
+        font-size: 0.93rem;
+        line-height: 1.65;
+      }
+
+      .toc {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin-top: 20px;
+      }
+
+      .toc-card {
+        border-radius: 24px;
+        padding: 18px;
+        border: 1px solid rgba(226, 232, 240, 0.9);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.94));
+        box-shadow: 0 14px 28px rgba(15, 23, 42, 0.05);
+      }
+
+      .toc-card h3,
+      .module h3,
+      .module h4 {
+        margin: 0;
+      }
+
+      .toc-card p {
+        margin: 10px 0 0;
+        color: var(--muted);
+        line-height: 1.7;
+        font-size: 0.95rem;
+      }
+
+      .module-grid {
+        margin-top: 20px;
+      }
+
+      .module {
+        border-radius: 30px;
+        padding: 24px;
+        scroll-margin-top: 24px;
+      }
+
+      .module-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        align-items: flex-start;
+      }
+
+      .module-title {
+        display: flex;
+        gap: 16px;
+      }
+
+      .module-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 20px;
+        display: grid;
+        place-items: center;
+        color: white;
+        font-weight: 700;
+        font-size: 1.15rem;
+        box-shadow: 0 16px 30px rgba(15, 23, 42, 0.12);
+      }
+
+      .module-copy {
+        margin-top: 14px;
+        color: var(--muted);
+        line-height: 1.8;
+      }
+
+      .module-summary {
+        min-width: 260px;
+        max-width: 300px;
+        border-radius: 22px;
+        border: 1px solid rgba(226, 232, 240, 0.9);
+        background: rgba(255, 255, 255, 0.9);
+        padding: 16px;
+      }
+
+      .module-summary p {
+        margin: 8px 0 0;
+        color: var(--muted-soft);
+        line-height: 1.7;
+        font-size: 0.92rem;
+      }
+
+      .info-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-top: 18px;
+      }
+
+      .card {
+        border-radius: 22px;
+        border: 1px solid rgba(226, 232, 240, 0.9);
+        background: rgba(255, 255, 255, 0.96);
+        padding: 18px;
+        box-shadow: 0 12px 26px rgba(15, 23, 42, 0.05);
+      }
+
+      .card p,
+      .steps li,
+      .checklist li {
+        color: var(--muted);
+        line-height: 1.8;
+      }
+
+      .steps,
+      .checklist {
+        margin: 16px 0 0;
+        padding-left: 20px;
+      }
+
+      .steps li + li,
+      .checklist li + li {
+        margin-top: 10px;
+      }
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 16px;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 9px 12px;
+        border: 1px solid rgba(226, 232, 240, 0.92);
+        background: rgba(248, 250, 252, 0.92);
+        color: var(--muted-soft);
+      }
+
+      .footer-note {
+        margin-top: 18px;
+        border-radius: 24px;
+        border: 1px solid rgba(16, 185, 129, 0.18);
+        background: linear-gradient(180deg, rgba(241, 253, 248, 0.98), rgba(255, 255, 255, 0.95));
+        padding: 18px;
+        color: #166534;
+        line-height: 1.8;
+      }
+
+      .dashboard { color: var(--dashboard); }
+      .support { color: var(--support); }
+      .referent { color: var(--referent); }
+      .brief { color: var(--brief); }
+      .import { color: var(--import); }
+      .messagerie { color: var(--messagerie); }
+      .admin { color: var(--admin); }
+      .access { color: var(--access); }
+      .terrain { color: var(--terrain); }
+
+      .dashboard-bg { background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%); }
+      .support-bg { background: linear-gradient(180deg, #0f8d6c 0%, #0b7a61 100%); }
+      .referent-bg { background: linear-gradient(180deg, #8b5cf6 0%, #7c3aed 100%); }
+      .brief-bg { background: linear-gradient(180deg, #0ea5e9 0%, #0284c7 100%); }
+      .import-bg { background: linear-gradient(180deg, #f43f5e 0%, #e11d48 100%); }
+      .messagerie-bg { background: linear-gradient(180deg, #14b8a6 0%, #0f766e 100%); }
+      .admin-bg { background: linear-gradient(180deg, #6366f1 0%, #4338ca 100%); }
+      .access-bg { background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%); }
+      .terrain-bg { background: linear-gradient(180deg, #10b981 0%, #0f8d6c 100%); }
+
+      @media (max-width: 1080px) {
+        .hero-top,
+        .module-header {
+          flex-direction: column;
+        }
+
+        .hero-meta,
+        .module-summary {
+          min-width: 0;
+          max-width: none;
+          width: 100%;
+        }
+
+        .toc {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .stats {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 760px) {
+        .page {
+          width: min(100vw - 20px, 1240px);
+          padding-top: 16px;
+        }
+
+        .hero,
+        .panel,
+        .module {
+          padding: 18px;
+          border-radius: 26px;
+        }
+
+        .toc,
+        .stats,
+        .info-grid {
+          grid-template-columns: 1fr;
+        }
+
+        h1 {
+          font-size: 2.35rem;
+        }
+
+        .section-title {
+          font-size: 1.55rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="hero">
+        <div class="hero-top">
+          <div>
+            <div class="brand">
+              <div class="brand-badge">DB</div>
+              <div>
+                <p class="eyebrow">DEMAT-BT V2</p>
+                <h1>Tutoriel fonctionnel des modules</h1>
+              </div>
+            </div>
+            <p>
+              Cette page sert de support de formation pour comprendre la logique de
+              l'application, le rôle de chaque module et le bon ordre d'utilisation
+              dans une journée type. Le contenu ci-dessous a été rédigé à partir de
+              la structure actuelle du projet.
+            </p>
+          </div>
+
+          <aside class="hero-meta">
+            <div class="meta-label">Usage conseillé</div>
+            <strong>Support de formation interne</strong>
+            <p>
+              À utiliser en accompagnement d'une démonstration, d'une prise en main
+              métier ou comme base pour une future documentation illustrée.
+            </p>
+          </aside>
+        </div>
+
+        <nav class="hero-nav">
+          <a class="pill" href="#vue-ensemble">Vue d'ensemble</a>
+          <a class="pill" href="#workflow">Ordre recommandé</a>
+          <a class="pill" href="#dashboard">Modules bureau</a>
+          <a class="pill" href="#terrain">Application terrain</a>
+        </nav>
+      </header>
+
+      <section class="panel" id="vue-ensemble">
+        <h2 class="section-title">Vue d'ensemble</h2>
+        <p class="section-copy">
+          DEMAT-BT V2 couvre toute la chaîne: préparation de la journée, affectation
+          des équipes, lecture détaillée des BT, import des documents, messagerie
+          bureau-terrain, administration des techniciens et gestion des habilitations.
+        </p>
+
+        <div class="stats">
+          <article class="stat">
+            <div class="stat-label">Modules bureau</div>
+            <strong>8</strong>
+            <p>Tableau de bord, Support Journée, Référent, Brief, Import PDF, Messagerie, Admin tech, Accès.</p>
+          </article>
+          <article class="stat">
+            <div class="stat-label">Application terrain</div>
+            <strong>1</strong>
+            <p>Consultation de la mission publiée, des BT, des messages et des repères utiles.</p>
+          </article>
+          <article class="stat">
+            <div class="stat-label">Point fort</div>
+            <strong>Flux métier</strong>
+            <p>L'application relie les données du support, les PDF BT, le dispatch mobile et les comptes.</p>
+          </article>
+          <article class="stat">
+            <div class="stat-label">Objectif</div>
+            <strong>Moins de friction</strong>
+            <p>Préparer plus vite la journée, fiabiliser les affectations et donner aux techniciens une lecture simple.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel" id="workflow">
+        <h2 class="section-title">Ordre recommandé d'utilisation</h2>
+        <p class="section-copy">
+          Voici le chemin le plus logique pour une journée standard côté bureau.
+          Cet ordre peut varier, mais il donne une très bonne base de formation.
+        </p>
+
+        <div class="toc">
+          <a class="toc-card" href="#import-pdf">
+            <h3 class="import">1. Import PDF</h3>
+            <p>Charger le PDF journalier, reconnaître les BT et enregistrer la journée source.</p>
+          </a>
+          <a class="toc-card" href="#support">
+            <h3 class="support">2. Support Journée</h3>
+            <p>Préparer les affectations, l'activité du jour, les briefs et les observations.</p>
+          </a>
+          <a class="toc-card" href="#brief">
+            <h3 class="brief">3. Brief</h3>
+            <p>Contrôler le détail des BT, les documents associés et le workflow documentaire.</p>
+          </a>
+          <a class="toc-card" href="#referent">
+            <h3 class="referent">4. Référent</h3>
+            <p>Vérifier les équipes, compléter les BT et préparer l'envoi mobile.</p>
+          </a>
+          <a class="toc-card" href="#messagerie">
+            <h3 class="messagerie">5. Messagerie</h3>
+            <p>Envoyer des consignes terrain ciblées, planifiées ou immédiates.</p>
+          </a>
+          <a class="toc-card" href="#terrain">
+            <h3 class="terrain">6. Application terrain</h3>
+            <p>Le technicien reçoit sa mission, lit ses BT, ses alertes et ses messages.</p>
+          </a>
+        </div>
+      </section>
+
+      <section class="module-grid">
+        <article class="module" id="dashboard">
+          <div class="module-header">
+            <div class="module-title">
+              <div class="module-icon dashboard-bg">TB</div>
+              <div>
+                <div class="module-kicker dashboard">Module d'entrée</div>
+                <h3>Tableau de bord</h3>
+                <p class="module-copy">
+                  Le tableau de bord est la porte d'entrée de l'application bureau.
+                  Il ne sert pas à produire de la donnée métier directement: il sert à
+                  orienter rapidement l'utilisateur vers le bon module selon son besoin du moment.
+                </p>
+              </div>
+            </div>
+            <aside class="module-summary">
+              <div class="meta-label">À quoi il sert</div>
+              <strong>Se repérer</strong>
+              <p>Voir les modules disponibles, la date du jour et accéder rapidement au bon espace de travail.</p>
+            </aside>
+          </div>
+          <div class="info-grid">
+            <div class="card">
+              <h4>Fonctions principales</h4>
+              <ul class="steps">
+                <li>Afficher les modules accessibles selon les droits du compte.</li>
+                <li>Montrer un point d'entrée clair pour la journée en cours.</li>
+                <li>Donner un repère rapide de navigation à l'utilisateur bureau.</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h4>Quand l'utiliser</h4>
+              <ul class="checklist">
+                <li>En début de journée pour choisir le module de travail.</li>
+                <li>Quand un manager ou référent change de tâche.</li>
+                <li>Pour vérifier d'un coup d'œil les modules disponibles pour son profil.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="chips">
+            <span class="chip">Navigation</span>
+            <span class="chip">Visibilité selon permissions</span>
+            <span class="chip">Point d'entrée bureau</span>
+          </div>
+        </article>
+
+        <article class="module" id="support">
+          <div class="module-header">
+            <div class="module-title">
+              <div class="module-icon support-bg">SJ</div>
+              <div>
+                <div class="module-kicker support">Pilotage quotidien</div>
+                <h3>Support Journée</h3>
+                <p class="module-copy">
+                  Support Journée est le cœur de préparation opérationnelle. C'est ici
+                  qu'on organise la journée humaine et métier: présence, activité du jour,
+                  briefs agence, briefs distance, GTV, observations et affectations.
+                </p>
+              </div>
+            </div>
+            <aside class="module-summary">
+              <div class="meta-label">À quoi il sert</div>
+              <strong>Préparer la journée</strong>
+              <p>Construire la journée des techniciens avec les bonnes affectations et les bons compléments d'information.</p>
+            </aside>
+          </div>
+          <div class="info-grid">
+            <div class="card">
+              <h4>Fonctions principales</h4>
+              <ol class="steps">
+                <li>Choisir une date de travail et parcourir les journées disponibles.</li>
+                <li>Renseigner ou ajuster l'activité de chaque technicien.</li>
+                <li>Saisir les observations, briefs et informations utiles à transmettre.</li>
+                <li>Piloter les états comme présent, grève ou absent selon les besoins métier.</li>
+              </ol>
+            </div>
+            <div class="card">
+              <h4>Points de vigilance</h4>
+              <ul class="checklist">
+                <li>Le contenu saisi ici sert ensuite aux modules Référent, Messagerie et Terrain.</li>
+                <li>Une mauvaise affectation ou un brief incomplet crée une friction en aval.</li>
+                <li>Le module semble prévu pour travailler avec un verrou de contrôle, donc mieux vaut éviter l'édition concurrente.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="chips">
+            <span class="chip">Affectations</span>
+            <span class="chip">Brief agence</span>
+            <span class="chip">Brief distance</span>
+            <span class="chip">Observations</span>
+            <span class="chip">Météo / repères du jour</span>
+          </div>
+        </article>
+
+        <article class="module" id="referent">
+          <div class="module-header">
+            <div class="module-title">
+              <div class="module-icon referent-bg">RF</div>
+              <div>
+                <div class="module-kicker referent">Préparation mobile</div>
+                <h3>Référent</h3>
+                <p class="module-copy">
+                  Le module Référent sert à transformer la matière BT en dispatch exploitable
+                  pour le terrain. Il donne une vue synthétique des BT, des équipes détectées
+                  et de l'état de préparation avant publication mobile.
+                </p>
+              </div>
+            </div>
+            <aside class="module-summary">
+              <div class="meta-label">À quoi il sert</div>
+              <strong>Préparer l'envoi</strong>
+              <p>Vérifier les BT, leurs équipes, leurs blocages et constituer une mission claire pour le technicien.</p>
+            </aside>
+          </div>
+          <div class="info-grid">
+            <div class="card">
+              <h4>Fonctions principales</h4>
+              <ol class="steps">
+                <li>Filtrer les BT par recherche, technicien ou statut opérationnel.</li>
+                <li>Repérer les BT non affectés, à compléter, bloqués O2 ou prêts mobile.</li>
+                <li>Contrôler les équipes détectées et les éventuelles surcharges de dispatch.</li>
+                <li>Préparer les BT pour l'envoi mobile quand ils sont complets.</li>
+              </ol>
+            </div>
+            <div class="card">
+              <h4>Lecture métier utile</h4>
+              <ul class="checklist">
+                <li><strong>À affecter</strong> : il manque une équipe ou une information indispensable.</li>
+                <li><strong>À compléter</strong> : le BT existe mais la préparation n'est pas encore suffisante.</li>
+                <li><strong>Bloqué O2</strong> : modification ou workflow externe non validé.</li>
+                <li><strong>Prêt mobile</strong> : envoi au terrain possible.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="chips">
+            <span class="chip">Dispatch</span>
+            <span class="chip">Statuts opérationnels</span>
+            <span class="chip">Contrôle des équipes</span>
+            <span class="chip">Préparation mobile</span>
+          </div>
+        </article>
+
+        <article class="module" id="brief">
+          <div class="module-header">
+            <div class="module-title">
+              <div class="module-icon brief-bg">BF</div>
+              <div>
+                <div class="module-kicker brief">Lecture détaillée BT</div>
+                <h3>Brief</h3>
+                <p class="module-copy">
+                  Le module Brief est l'espace de lecture avancée du dossier BT. Il permet
+                  d'ouvrir les documents, d'analyser les pièces, de regarder les risques,
+                  d'observer les pages utiles et de gérer un workflow documentaire plus fin.
+                </p>
+              </div>
+            </div>
+            <aside class="module-summary">
+              <div class="meta-label">À quoi il sert</div>
+              <strong>Contrôler le fond</strong>
+              <p>Travailler le contenu des BT avant diffusion: documents, pages, remplacements, validation métier.</p>
+            </aside>
+          </div>
+          <div class="info-grid">
+            <div class="card">
+              <h4>Fonctions principales</h4>
+              <ol class="steps">
+                <li>Parcourir les BT par équipe ou par catégorie.</li>
+                <li>Lire les documents associés, pages BT, procédures, photos et autres annexes.</li>
+                <li>Suivre le workflow d'un BT: attente O2, validé O2, remplacé, etc.</li>
+                <li>Générer et enregistrer des PDF dérivés unitaires par BT.</li>
+              </ol>
+            </div>
+            <div class="card">
+              <h4>Pourquoi il est important</h4>
+              <ul class="checklist">
+                <li>C'est le bon module pour comprendre exactement ce qui sera vu par le terrain.</li>
+                <li>Il sert de sas qualité avant publication mobile.</li>
+                <li>Il aide à éviter l'envoi d'un BT incomplet, erroné ou mal découpé.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="chips">
+            <span class="chip">Viewer PDF</span>
+            <span class="chip">Analyse des risques</span>
+            <span class="chip">Observations</span>
+            <span class="chip">Workflow documentaire</span>
+          </div>
+        </article>
+
+        <article class="module" id="import-pdf">
+          <div class="module-header">
+            <div class="module-title">
+              <div class="module-icon import-bg">IP</div>
+              <div>
+                <div class="module-kicker import">Alimentation documentaire</div>
+                <h3>Import PDF</h3>
+                <p class="module-copy">
+                  Import PDF sert à faire entrer le PDF journalier dans l'application.
+                  Il lance l'analyse automatique, détecte les BT, crée les fichiers dérivés
+                  par BT et enregistre la journée importée dans le stockage et la base.
+                </p>
+              </div>
+            </div>
+            <aside class="module-summary">
+              <div class="meta-label">À quoi il sert</div>
+              <strong>Créer la source du jour</strong>
+              <p>Sans ce module, il n'y a pas de matière BT exploitable dans les autres espaces de travail.</p>
+            </aside>
+          </div>
+          <div class="info-grid">
+            <div class="card">
+              <h4>Étapes type</h4>
+              <ol class="steps">
+                <li>Choisir le PDF journalier.</li>
+                <li>Lancer la reconnaissance DBT et lire le résultat d'analyse.</li>
+                <li>Contrôler la date détectée, le nombre de BT et les documents reconnus.</li>
+                <li>Enregistrer la journée pour téléverser le PDF source et les PDF BT dérivés.</li>
+              </ol>
+            </div>
+            <div class="card">
+              <h4>Points de vigilance</h4>
+              <ul class="checklist">
+                <li>Un PDF mal structuré ou non conforme peut empêcher la détection correcte des BT.</li>
+                <li>La date importée doit être cohérente avec la journée de mission visée.</li>
+                <li>Ce module conditionne la qualité de lecture du module Brief et de l'app terrain.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="chips">
+            <span class="chip">Upload PDF</span>
+            <span class="chip">Reconnaissance BT</span>
+            <span class="chip">Stockage source</span>
+            <span class="chip">PDF dérivés</span>
+          </div>
+        </article>
+
+        <article class="module" id="messagerie">
+          <div class="module-header">
+            <div class="module-title">
+              <div class="module-icon messagerie-bg">MS</div>
+              <div>
+                <div class="module-kicker messagerie">Bureau vers terrain</div>
+                <h3>Messagerie</h3>
+                <p class="module-copy">
+                  La Messagerie est la console de communication bureau-terrain.
+                  Elle permet de composer des messages ciblés, de suivre les dernières
+                  diffusions, de gérer les pièces jointes et de garder une trace des échanges.
+                </p>
+              </div>
+            </div>
+            <aside class="module-summary">
+              <div class="meta-label">À quoi il sert</div>
+              <strong>Transmettre les consignes</strong>
+              <p>Donner une information opérationnelle claire à la bonne population: agence, manager, groupe ou technicien.</p>
+            </aside>
+          </div>
+          <div class="info-grid">
+            <div class="card">
+              <h4>Fonctions principales</h4>
+              <ol class="steps">
+                <li>Composer un message bureau avec titre, contenu et éventuellement pièce jointe.</li>
+                <li>Cibler les destinataires utiles.</li>
+                <li>Suivre les messages récents et leur lecture.</li>
+                <li>Archiver ou supprimer les messages selon leur cycle de vie.</li>
+              </ol>
+            </div>
+            <div class="card">
+              <h4>Cas d'usage typiques</h4>
+              <ul class="checklist">
+                <li>Brief spécifique de sécurité sur une tournée.</li>
+                <li>Information logistique à plusieurs techniciens d'un site.</li>
+                <li>Consigne de dernière minute rattachée à la mission du jour.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="chips">
+            <span class="chip">Diffusion ciblée</span>
+            <span class="chip">Pièces jointes</span>
+            <span class="chip">Historique</span>
+            <span class="chip">Lecture / non lecture</span>
+          </div>
+        </article>
+
+        <article class="module" id="admin-tech">
+          <div class="module-header">
+            <div class="module-title">
+              <div class="module-icon admin-bg">AT</div>
+              <div>
+                <div class="module-kicker admin">Référentiel métier</div>
+                <h3>Admin tech</h3>
+                <p class="module-copy">
+                  Admin tech sert à maintenir le référentiel des techniciens et de
+                  leurs attributs métier. C'est le module d'administration fonctionnelle
+                  des personnes qui seront ensuite utilisées dans Support Journée et Référent.
+                </p>
+              </div>
+            </div>
+            <aside class="module-summary">
+              <div class="meta-label">À quoi il sert</div>
+              <strong>Tenir la base techniciens</strong>
+              <p>Créer, modifier, filtrer ou désactiver les techniciens sans passer par un outil technique externe.</p>
+            </aside>
+          </div>
+          <div class="info-grid">
+            <div class="card">
+              <h4>Fonctions principales</h4>
+              <ul class="steps">
+                <li>Créer un nouveau technicien.</li>
+                <li>Modifier son nom, son NNI, son manager, son site et son rôle.</li>
+                <li>Renseigner les capacités ou profils comme PTC / PTD.</li>
+                <li>Activer ou désactiver un technicien dans le référentiel.</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h4>Impact sur le reste de l'application</h4>
+              <ul class="checklist">
+                <li>Les équipes affichées ailleurs dépendent de la qualité de ce référentiel.</li>
+                <li>Un technicien absent du référentiel peut bloquer ou fausser une affectation.</li>
+                <li>Un mauvais site ou manager rattaché crée des erreurs de pilotage.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="chips">
+            <span class="chip">Référentiel techniciens</span>
+            <span class="chip">Manager</span>
+            <span class="chip">Site</span>
+            <span class="chip">Rôle métier</span>
+          </div>
+        </article>
+
+        <article class="module" id="access">
+          <div class="module-header">
+            <div class="module-title">
+              <div class="module-icon access-bg">AC</div>
+              <div>
+                <div class="module-kicker access">Sécurité fonctionnelle</div>
+                <h3>Accès et permissions</h3>
+                <p class="module-copy">
+                  Le module Accès gère les comptes utilisateur, leurs profils bureau
+                  ou terrain, leurs permissions de modules et l'état global de leur habilitation.
+                </p>
+              </div>
+            </div>
+            <aside class="module-summary">
+              <div class="meta-label">À quoi il sert</div>
+              <strong>Donner les bons droits</strong>
+              <p>Créer les comptes, lier les techniciens, ouvrir l'accès bureau ou terrain et contrôler les permissions par module.</p>
+            </aside>
+          </div>
+          <div class="info-grid">
+            <div class="card">
+              <h4>Fonctions principales</h4>
+              <ol class="steps">
+                <li>Créer un nouvel accès bureau, terrain ou mixte.</li>
+                <li>Lier le compte à un technicien quand c'est nécessaire.</li>
+                <li>Choisir les rôles bureau et terrain.</li>
+                <li>Régler les droits de lecture ou d'écriture par module.</li>
+              </ol>
+            </div>
+            <div class="card">
+              <h4>Points de contrôle</h4>
+              <ul class="checklist">
+                <li>Vérifier l'état du compte: actif, inactif ou suspendu.</li>
+                <li>Contrôler si le mot de passe a bien été changé.</li>
+                <li>Vérifier que le périmètre de droits correspond au rôle réel de la personne.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="chips">
+            <span class="chip">Comptes</span>
+            <span class="chip">Bureau + terrain</span>
+            <span class="chip">Permissions par module</span>
+            <span class="chip">Sécurité</span>
+          </div>
+        </article>
+
+        <article class="module" id="terrain">
+          <div class="module-header">
+            <div class="module-title">
+              <div class="module-icon terrain-bg">TR</div>
+              <div>
+                <div class="module-kicker terrain">Usage technicien</div>
+                <h3>Application terrain</h3>
+                <p class="module-copy">
+                  L'application terrain est la restitution mobile de la journée préparée
+                  au bureau. Le technicien y retrouve sa mission publiée, ses BT, les points
+                  à lire, les informations utiles et les messages du bureau.
+                </p>
+              </div>
+            </div>
+            <aside class="module-summary">
+              <div class="meta-label">À quoi il sert</div>
+              <strong>Exécuter la mission</strong>
+              <p>Donner au terrain une lecture rapide, claire et immédiatement exploitable de la journée.</p>
+            </aside>
+          </div>
+          <div class="info-grid">
+            <div class="card">
+              <h4>Parcours type du technicien</h4>
+              <ol class="steps">
+                <li>Se connecter à l'application terrain.</li>
+                <li>Voir si une mission a été publiée et pour quelle date.</li>
+                <li>Consulter la journée pour lire les interventions, horaires, adresses, risques et observations.</li>
+                <li>Ouvrir le PDF BT associé si nécessaire.</li>
+                <li>Confirmer la bonne réception de la mission.</li>
+              </ol>
+            </div>
+            <div class="card">
+              <h4>Sous-espaces terrain</h4>
+              <ul class="checklist">
+                <li><strong>Accueil / Hub</strong> : synthèse de la mission publiée.</li>
+                <li><strong>Ma journée</strong> : cartes détaillées des interventions et accès PDF BT.</li>
+                <li><strong>Messagerie</strong> : messages bureau et indicateurs de lecture.</li>
+                <li><strong>Infos</strong> : sécurité, contacts, procédures et installation de l'app.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="chips">
+            <span class="chip">Mission mobile</span>
+            <span class="chip">BT du jour</span>
+            <span class="chip">Accusé de réception</span>
+            <span class="chip">Messagerie bureau</span>
+          </div>
+        </article>
+      </section>
+
+      <section class="panel">
+        <h2 class="section-title">Checklist de formation conseillée</h2>
+        <p class="section-copy">
+          Pour une démonstration interne, tu peux suivre cette séquence simple.
+        </p>
+        <div class="info-grid" style="margin-top: 20px;">
+          <div class="card">
+            <h4>Session bureau</h4>
+            <ol class="steps">
+              <li>Montrer le Tableau de bord et l'accès aux modules.</li>
+              <li>Faire un exemple d'import PDF.</li>
+              <li>Préparer une journée dans Support Journée.</li>
+              <li>Contrôler un BT dans Brief.</li>
+              <li>Finaliser un dispatch dans Référent.</li>
+              <li>Envoyer un message dans Messagerie.</li>
+            </ol>
+          </div>
+          <div class="card">
+            <h4>Session terrain</h4>
+            <ol class="steps">
+              <li>Se connecter avec un compte terrain.</li>
+              <li>Ouvrir la mission publiée.</li>
+              <li>Afficher un BT et son PDF.</li>
+              <li>Relire les risques et observations.</li>
+              <li>Montrer l'accusé de réception et la zone messagerie.</li>
+            </ol>
+          </div>
+        </div>
+        <div class="footer-note">
+          Ce tutoriel HTML est une bonne première base. La prochaine étape naturelle
+          serait de l'enrichir avec de vraies captures d'écran par module, puis de le
+          décliner en PowerPoint ou en centre d'aide intégré à l'application.
+        </div>
+      </section>
+    </div>
+  </body>
+</html>

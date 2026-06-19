@@ -390,7 +390,7 @@ export function MessagingWorkspace({
                 {
                   icon: UsersRound,
                   label: "Cibles disponibles",
-                  text: `${messageTargets.length} technicien(s) avec acces terrain et filtrage manager.`,
+                  text: `${messageTargets.length} technicien(s) avec acces terrain sur l'ensemble des sites.`,
                   tone: "text-sky-700 bg-sky-50",
                 },
                 {

@@ -132,7 +132,6 @@ async function resolveRecipients(options: {
   managerId: string | null;
   selectedTechnicianIds: string[];
   site: string | null;
-  siteCode: string;
   targetType: MessagingTargetType;
 }) {
   let query = options.adminSupabase
@@ -185,13 +184,14 @@ async function resolveRecipients(options: {
     ];
   }) satisfies RecipientCandidate[];
 
-  const siteScopedCandidates = candidates.filter((candidate) => candidate.site_code === options.siteCode);
   const filtered =
-    options.targetType === "site" && options.site
-      ? siteScopedCandidates.filter(
-          (candidate) => candidate.site_code === options.site || candidate.site === options.site,
-        )
-      : siteScopedCandidates;
+    options.targetType === "agency" || options.targetType === "site" || options.targetType === "manager"
+      ? options.site
+        ? candidates.filter(
+            (candidate) => candidate.site_code === options.site || candidate.site === options.site,
+          )
+        : candidates
+      : candidates;
 
   const unique = new Map<string, RecipientCandidate>();
   filtered.forEach((candidate) => unique.set(candidate.technician_id, candidate));
@@ -283,10 +283,6 @@ export async function sendOfficeMessageAction(
       throw new Error("Le message est obligatoire.");
     }
 
-    if (targetType === "site" && !site) {
-      throw new Error("Selectionne un groupe/site.");
-    }
-
     if (targetType === "manager" && !managerId) {
       throw new Error("Selectionne un manager.");
     }
@@ -307,7 +303,6 @@ export async function sendOfficeMessageAction(
       managerId,
       selectedTechnicianIds,
       site,
-      siteCode: activeSiteCode,
       targetType,
     });
 
@@ -317,11 +312,13 @@ export async function sendOfficeMessageAction(
 
     const targetLabel =
       targetType === "agency"
-        ? "Toute l'agence"
+        ? site
+          ? `Agence - site ${site}`
+          : "Toute l'agence"
         : targetType === "site"
           ? `Groupe ${site}`
-          : targetType === "manager"
-            ? `Manager ${managerName ?? "non renseigne"}`
+        : targetType === "manager"
+            ? `Manager ${managerName ?? "non renseigne"}${site ? ` - site ${site}` : ""}`
           : recipients.map((recipient) => recipient.display_name).join(", ");
 
     const { data: message, error: messageError } = await adminSupabase
@@ -332,7 +329,7 @@ export async function sendOfficeMessageAction(
         sent_by_email: sentByEmail,
         sent_by_user_id: sentByOfficeAccountId,
         target_label: targetLabel,
-        target_site: targetType === "site" ? activeSiteCode : null,
+        target_site: site ?? null,
         target_type: targetType,
         title,
         valid_from: validFrom,
