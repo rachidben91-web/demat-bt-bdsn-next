@@ -21,7 +21,7 @@ export default async function ReferentPage({ searchParams }: ReferentPageProps) 
   const [data, supportData, weatherBundle] = await Promise.all([
     getBtImportDayOverview(resolvedSearchParams?.date, activeSiteCode),
     getSupportJourneeData(selectedDate, activeSiteCode),
-    getSupportWeatherBundle(selectedDate),
+    getSupportWeatherBundle(selectedDate, activeSiteCode),
   ]);
   const mobileDispatchStatuses = await getMobileDispatchStatusesForMissionDate(
     data.currentDay?.dayDate ?? selectedDate,

@@ -19,7 +19,7 @@ export default async function ChangePasswordPage() {
         <div className="grid w-full gap-8 rounded-[32px] border border-white/80 bg-white/70 p-6 shadow-[0_32px_90px_rgba(15,23,42,0.12)] backdrop-blur lg:grid-cols-[1.1fr_0.9fr] lg:p-8">
           <section className="rounded-[28px] bg-[#232b3f] p-8 text-white shadow-[0_24px_60px_rgba(15,23,42,0.2)]">
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-200">
-              DEMAT-BT Next
+              DEMAT-BT V2
             </p>
             <h1 className="mt-4 text-4xl font-semibold tracking-tight">
               Changement de mot de passe requis

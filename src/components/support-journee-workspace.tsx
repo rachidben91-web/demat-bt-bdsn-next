@@ -88,6 +88,26 @@ function formatLastUpdate(value: string | null) {
   }).format(new Date(value));
 }
 
+function formatModifierName(value: string | null | undefined) {
+  const trimmed = value?.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  const localPart = trimmed.includes("@") ? trimmed.split("@")[0] : trimmed;
+  const normalized = localPart.replace(/[._+~-]+/g, " ").trim();
+  const firstName = normalized.split(/\s+/).find(Boolean);
+
+  if (!firstName) {
+    return trimmed;
+  }
+
+  return `${firstName.charAt(0).toLocaleUpperCase("fr-FR")}${firstName
+    .slice(1)
+    .toLocaleLowerCase("fr-FR")}`;
+}
+
 function normalizeField(value: string) {
   return value === "—" ? "" : value;
 }
@@ -331,6 +351,7 @@ export function SupportJourneeWorkspace({
   const [lockedBy, setLockedBy] = useState(supportSummary.lockedBy);
   const [lockedAt, setLockedAt] = useState(supportSummary.lockedAt);
   const [lastUpdate, setLastUpdate] = useState(supportSummary.lastUpdate);
+  const [lastModifiedBy, setLastModifiedBy] = useState(supportSummary.lastModifiedBy);
   const [statusMessage, setStatusMessage] = useState(
     source === "mock"
       ? "Mode maquette actif : les actions restent locales."
@@ -586,6 +607,7 @@ export function SupportJourneeWorkspace({
       setLockedBy(supportSummary.lockedBy);
       setLockedAt(supportSummary.lockedAt);
       setLastUpdate(supportSummary.lastUpdate);
+      setLastModifiedBy(supportSummary.lastModifiedBy);
     });
 
     return () => {
@@ -594,6 +616,7 @@ export function SupportJourneeWorkspace({
   }, [
     supportSummary.dayId,
     supportSummary.editStatus,
+    supportSummary.lastModifiedBy,
     supportSummary.lastUpdate,
     supportSummary.lockedAt,
     supportSummary.lockedBy,
@@ -627,6 +650,7 @@ export function SupportJourneeWorkspace({
     dayId?: string | null;
     editStatus?: string;
     lastModifiedAt?: string | null;
+    lastModifiedBy?: string | null;
     lockedBy?: string | null;
     lockedAt?: string | null;
   }) => {
@@ -651,6 +675,10 @@ export function SupportJourneeWorkspace({
     if (result.lastModifiedAt !== undefined) {
       setLastUpdate(formatLastUpdate(result.lastModifiedAt));
     }
+
+    if (result.lastModifiedBy !== undefined) {
+      setLastModifiedBy(formatModifierName(result.lastModifiedBy));
+    }
   };
 
   const persistAssignments = useCallback(async (trigger: SaveTrigger) => {
@@ -659,6 +687,7 @@ export function SupportJourneeWorkspace({
       setSavedAssignments(assignmentsRef.current);
       setSavedGlobalObservation(globalObservationRef.current);
       setLastUpdate("Brouillon local");
+      setLastModifiedBy(null);
       return true;
     }
 
@@ -1470,7 +1499,10 @@ export function SupportJourneeWorkspace({
                       </p>
                       <p className="mt-2 text-sm text-slate-500">{supportSummary.weekLabel}</p>
                       <div className="mt-4 space-y-2 text-sm text-slate-500">
-                        <p>Derniere modification : {lastUpdate}</p>
+                        <p>
+                          Derniere modification : {lastUpdate}
+                          {lastModifiedBy ? ` par ${lastModifiedBy}` : ""}
+                        </p>
                         <p>Statut edition : {formatEditStatusLabel(editStatus)}</p>
                         <p>Verrou : {lockedBy ? `${lockedBy} (${formatLockTimestamp(lockedAt)})` : "Libre"}</p>
                       </div>

@@ -20,7 +20,7 @@ export default async function BriefPage({ searchParams }: BriefPageProps) {
   const [data, technicians, weatherBundle] = await Promise.all([
     getBtImportDayOverview(resolvedSearchParams?.date, activeSiteCode),
     getBriefAssignmentOptions(activeSiteCode),
-    getSupportWeatherBundle(selectedDate),
+    getSupportWeatherBundle(selectedDate, activeSiteCode),
   ]);
   const headerDateTimeLabel = new Intl.DateTimeFormat("fr-FR", {
     weekday: "long",

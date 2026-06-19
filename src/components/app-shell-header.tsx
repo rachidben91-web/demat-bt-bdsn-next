@@ -109,7 +109,7 @@ export function AppShellHeader({
       )}
     >
       <div className="px-5 py-3.5 sm:px-6 lg:px-7">
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.95fr)_auto] xl:items-center">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(620px,760px)_minmax(0,1fr)] xl:items-center">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/85 bg-white/80 shadow-[0_8px_20px_rgba(148,163,184,0.12)]">
@@ -123,7 +123,7 @@ export function AppShellHeader({
                 />
               </span>
               <p className="text-[11px] font-semibold uppercase tracking-[0.38em] text-slate-500">
-                DEMAT-BT Next
+                DEMAT-BT V2
               </p>
             </div>
             <div className="mt-3 flex flex-col gap-1.5">
@@ -141,21 +141,21 @@ export function AppShellHeader({
 
           <div className="min-w-0">
             {hasHeaderStatus ? (
-              <div className="mx-auto max-w-[760px] rounded-[22px] border border-sky-200/90 bg-[linear-gradient(180deg,rgba(248,251,255,0.97)_0%,rgba(228,237,251,0.97)_100%)] px-5 py-3 text-center text-slate-900 shadow-[0_18px_38px_rgba(125,146,178,0.18)] backdrop-blur">
+              <div className="mx-auto w-full max-w-[760px] rounded-[22px] border border-sky-200/90 bg-[linear-gradient(180deg,rgba(248,251,255,0.97)_0%,rgba(228,237,251,0.97)_100%)] px-5 py-3 text-center text-slate-900 shadow-[0_18px_38px_rgba(125,146,178,0.18)] backdrop-blur">
                 <p className="text-[15px] font-semibold tracking-[0.01em] text-slate-900">
                   {headerDateTimeLabel ?? weatherGeneratedAtLabel ?? "Repère indisponible"}
                 </p>
                 <div className="mx-auto mt-2 h-px w-24 bg-[linear-gradient(90deg,transparent,rgba(59,130,246,0.35),transparent)]" />
-                <div className="mt-2 flex flex-nowrap items-center justify-center gap-2 overflow-hidden text-[10px] text-slate-700">
+                <div className="mt-2 flex flex-wrap items-center justify-center gap-2 text-[11px] text-slate-700">
                   {weatherZones.map((zone) => (
                     <span
                       key={zone.id}
-                      className="inline-flex min-w-0 shrink items-center gap-1 whitespace-nowrap rounded-full bg-white/72 px-2 py-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]"
+                      className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-white/72 px-2.5 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]"
                     >
                       <span>{zone.weatherIcon}</span>
-                      <span className="truncate font-medium text-slate-800">{zone.label}</span>
+                      <span className="font-medium text-slate-800">{zone.label}</span>
                       <span className="shrink-0 text-slate-600">
-                        {zone.temperatureC ?? "—"}°C (Pluie {zone.rainProbabilityPercent ?? "—"}%)
+                        {zone.temperatureC ?? "—"}&deg; - Pluie {zone.rainProbabilityPercent ?? "—"}%
                       </span>
                     </span>
                   ))}
@@ -165,8 +165,8 @@ export function AppShellHeader({
           </div>
 
           <div className="flex flex-wrap items-center justify-start gap-2.5 xl:justify-end">
-              <div className="rounded-[20px] border border-white/95 bg-white/85 p-1.5 shadow-[0_18px_36px_rgba(148,163,184,0.12)] backdrop-blur">
-                <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+              <div className="w-[220px] rounded-[20px] border border-white/95 bg-white/85 p-1.5 shadow-[0_18px_36px_rgba(148,163,184,0.12)] backdrop-blur">
+                <p className="truncate px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
                   {activeSiteLabel}
                 </p>
                 <div className="flex gap-1">
@@ -181,8 +181,8 @@ export function AppShellHeader({
                           className={cx(
                             "rounded-[12px] px-2.5 py-1.5 text-xs font-bold transition",
                             isActive
-                              ? "bg-slate-950 text-white shadow-[0_8px_18px_rgba(15,23,42,0.16)]"
-                              : "text-slate-500 hover:bg-slate-100 hover:text-slate-950",
+                              ? "bg-[#0f2f66] text-white shadow-[0_8px_18px_rgba(15,47,102,0.22)]"
+                              : "text-slate-500 hover:bg-blue-50 hover:text-[#0f2f66]",
                           )}
                           type="submit"
                         >

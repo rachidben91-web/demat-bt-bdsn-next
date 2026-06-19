@@ -43,6 +43,7 @@ export type SupportJourneeActionResult = {
   dayId?: string | null;
   editStatus?: string;
   lastModifiedAt?: string | null;
+  lastModifiedBy?: string | null;
   lockedBy?: string | null;
   lockedAt?: string | null;
 };
@@ -332,6 +333,7 @@ export async function takeSupportDayControl(
       dayId: context.day.id,
       editStatus: "in_progress",
       lastModifiedAt: now,
+      lastModifiedBy: context.userEmail,
       lockedBy: context.userEmail,
       lockedAt: now,
     };
@@ -388,6 +390,7 @@ export async function releaseSupportDayControl(
       dayId,
       editStatus: "draft",
       lastModifiedAt: now,
+      lastModifiedBy: context.userEmail,
       lockedBy: null,
       lockedAt: null,
     };
@@ -612,6 +615,7 @@ export async function saveSupportDayAssignments(
       dayId,
       editStatus: "in_progress",
       lastModifiedAt: now,
+      lastModifiedBy: context.userEmail,
       lockedBy: context.userEmail,
       lockedAt: context.day.locked_at ?? now,
     };

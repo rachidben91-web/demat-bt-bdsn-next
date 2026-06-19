@@ -1,7 +1,9 @@
+import type { SiteCode } from "@/lib/site-options";
+
 const PARIS_TIME_ZONE = "Europe/Paris";
 const WEATHER_FETCH_TIMEOUT_MS = 4000;
 
-const SUPPORT_ZONES = [
+const WEATHER_ZONES = [
   {
     id: "villeneuve-la-garenne",
     label: "Villeneuve la Garenne",
@@ -30,7 +32,48 @@ const SUPPORT_ZONES = [
     latitude: 48.9362,
     longitude: 2.3574,
   },
+  {
+    id: "sartrouville",
+    label: "Sartrouville",
+    shortLabel: "SAT",
+    latitude: 48.9482,
+    longitude: 2.1917,
+  },
+  {
+    id: "croissy-sur-seine",
+    label: "Croissy-sur-Seine",
+    shortLabel: "Croissy",
+    latitude: 48.8794,
+    longitude: 2.1422,
+  },
+  {
+    id: "bezons",
+    label: "Bezons",
+    shortLabel: "Bezons",
+    latitude: 48.9243,
+    longitude: 2.2128,
+  },
+  {
+    id: "franconville",
+    label: "Franconville",
+    shortLabel: "Franconville",
+    latitude: 48.9873,
+    longitude: 2.2306,
+  },
 ] as const;
+
+type WeatherZone = (typeof WEATHER_ZONES)[number];
+
+const DAY_WEATHER_ZONE_IDS_BY_SITE: Record<SiteCode, WeatherZone["id"][]> = {
+  VLG: ["villeneuve-la-garenne", "groslay", "bois-colombes", "saint-denis"],
+  SAT: ["sartrouville", "croissy-sur-seine", "bezons", "franconville"],
+};
+
+function getDayWeatherZones(siteCode: SiteCode) {
+  const zoneIds = new Set(DAY_WEATHER_ZONE_IDS_BY_SITE[siteCode]);
+
+  return WEATHER_ZONES.filter((zone) => zoneIds.has(zone.id));
+}
 
 export type HeaderWeatherZone = {
   id: string;
@@ -284,6 +327,13 @@ function countHumidHours(
   return humidHours;
 }
 
+function countRainyHours(precipitations: Array<number | null | undefined>) {
+  return precipitations.filter(
+    (precipitation): precipitation is number =>
+      typeof precipitation === "number" && precipitation > 0.2,
+  ).length;
+}
+
 function inferRainProbabilityFromHistory(
   humidHours: number,
   precipitationMm: number | null,
@@ -303,32 +353,44 @@ function buildRsfDecision(
   rainProbabilityPercent: number | null,
   humidHours: number,
   precipitationMm: number | null,
+  rainyHours: number,
+  maxHourlyPrecipitationMm: number | null,
 ) {
   const rainProbability = rainProbabilityPercent ?? 0;
   const precipitation = precipitationMm ?? 0;
+  const maxHourlyPrecipitation = maxHourlyPrecipitationMm ?? 0;
 
-  if (rainProbability >= 50 || humidHours >= 4 || precipitation >= 5) {
+  if (
+    precipitation >= 8 ||
+    maxHourlyPrecipitation >= 3 ||
+    (precipitation >= 5 && rainyHours >= 4)
+  ) {
     return {
       level: "deconseillee" as const,
-      label: "RSF deconseillee - Humidite probable du sol",
+      label: "RSF deconseillee - Pluie durable / sol detrempe",
     };
   }
 
-  if (rainProbability > 40 || humidHours >= 2 || precipitation >= 1) {
+  if (
+    precipitation >= 2 ||
+    rainyHours >= 3 ||
+    maxHourlyPrecipitation >= 1 ||
+    (rainProbability >= 70 && (precipitation >= 0.5 || humidHours >= 6))
+  ) {
     return {
       level: "surveiller" as const,
-      label: "RSF a surveiller - Humidite possible",
+      label: "RSF a surveiller - Pluie significative possible",
     };
   }
 
   return {
     level: "favorable" as const,
-    label: "RSF favorable - Conditions seches probables",
+    label: "RSF favorable - Sol probablement sec",
   };
 }
 
 async function getHeaderZoneWeather(
-  zone: (typeof SUPPORT_ZONES)[number],
+  zone: WeatherZone,
 ): Promise<HeaderWeatherZone> {
   try {
     const todayDate = formatParisIsoDate();
@@ -364,7 +426,7 @@ async function getHeaderZoneWeather(
 }
 
 async function getForecastDayWeather(
-  zone: (typeof SUPPORT_ZONES)[number],
+  zone: WeatherZone,
   selectedDate: string,
   todayDate: string,
 ): Promise<DayWeatherZone | null> {
@@ -391,13 +453,22 @@ async function getForecastDayWeather(
     return null;
   }
 
+  const hourlyPrecipitations = weather.hourly?.precipitation ?? [];
   const rainProbabilityPercent = maxDefined(weather.hourly?.precipitation_probability ?? []);
   const humidHours = countHumidHours(
     weather.hourly?.relative_humidity_2m ?? [],
-    weather.hourly?.precipitation ?? [],
+    hourlyPrecipitations,
   );
+  const rainyHours = countRainyHours(hourlyPrecipitations);
+  const maxHourlyPrecipitationMm = maxDefined(hourlyPrecipitations);
   const precipitationMm = roundMetric(weather.daily?.precipitation_sum?.[dayIndex] ?? null, 1);
-  const rsf = buildRsfDecision(rainProbabilityPercent, humidHours, precipitationMm);
+  const rsf = buildRsfDecision(
+    rainProbabilityPercent,
+    humidHours,
+    precipitationMm,
+    rainyHours,
+    maxHourlyPrecipitationMm,
+  );
   const code =
     selectedDate === todayDate
       ? weather.current?.weather_code ?? weather.daily?.weather_code?.[dayIndex]
@@ -420,7 +491,7 @@ async function getForecastDayWeather(
 }
 
 async function getArchiveDayWeather(
-  zone: (typeof SUPPORT_ZONES)[number],
+  zone: WeatherZone,
   selectedDate: string,
 ): Promise<DayWeatherZone | null> {
   const url = new URL("https://archive-api.open-meteo.com/v1/archive");
@@ -442,13 +513,22 @@ async function getArchiveDayWeather(
     return null;
   }
 
+  const hourlyPrecipitations = weather.hourly?.precipitation ?? [];
   const precipitationMm = roundMetric(weather.daily?.precipitation_sum?.[dayIndex] ?? null, 1);
   const humidHours = countHumidHours(
     weather.hourly?.relative_humidity_2m ?? [],
-    weather.hourly?.precipitation ?? [],
+    hourlyPrecipitations,
   );
+  const rainyHours = countRainyHours(hourlyPrecipitations);
+  const maxHourlyPrecipitationMm = maxDefined(hourlyPrecipitations);
   const rainProbabilityPercent = inferRainProbabilityFromHistory(humidHours, precipitationMm);
-  const rsf = buildRsfDecision(rainProbabilityPercent, humidHours, precipitationMm);
+  const rsf = buildRsfDecision(
+    rainProbabilityPercent,
+    humidHours,
+    precipitationMm,
+    rainyHours,
+    maxHourlyPrecipitationMm,
+  );
   const code = weather.daily?.weather_code?.[dayIndex];
 
   return {
@@ -468,7 +548,7 @@ async function getArchiveDayWeather(
 }
 
 async function getSelectedDayZoneForecast(
-  zone: (typeof SUPPORT_ZONES)[number],
+  zone: WeatherZone,
   selectedDate: string,
   todayDate: string,
 ) {
@@ -497,11 +577,11 @@ function buildWeatherNote(dayZones: DayWeatherZone[], selectedDate: string, toda
   }).format(new Date(`${selectedDate}T12:00:00Z`));
 
   if (strongWatchCount > 0) {
-    return `${dateLabel} : vigilance humidite forte sur ${strongWatchCount} commune(s).`;
+    return `${dateLabel} : risque de sol detrempe sur ${strongWatchCount} commune(s).`;
   }
 
   if (mediumWatchCount > 0) {
-    return `${dateLabel} : vigilance humidite moderee sur ${mediumWatchCount} commune(s).`;
+    return `${dateLabel} : pluie significative a surveiller sur ${mediumWatchCount} commune(s).`;
   }
 
   return `${dateLabel} : conditions seches probables sur ${dayZones.length} commune(s).`;
@@ -509,11 +589,13 @@ function buildWeatherNote(dayZones: DayWeatherZone[], selectedDate: string, toda
 
 export async function getSupportWeatherBundle(
   selectedDate: string,
+  siteCode: SiteCode = "VLG",
 ): Promise<SupportWeatherBundle> {
   const todayDate = formatParisIsoDate();
+  const dayWeatherZones = getDayWeatherZones(siteCode);
   const [headerZones, dayZones] = await Promise.all([
-    Promise.all(SUPPORT_ZONES.map((zone) => getHeaderZoneWeather(zone))),
-    Promise.all(SUPPORT_ZONES.map((zone) => getSelectedDayZoneForecast(zone, selectedDate, todayDate))),
+    Promise.all(dayWeatherZones.map((zone) => getHeaderZoneWeather(zone))),
+    Promise.all(dayWeatherZones.map((zone) => getSelectedDayZoneForecast(zone, selectedDate, todayDate))),
   ]);
 
   const resolvedDayZones = dayZones.filter((zone): zone is DayWeatherZone => zone !== null);

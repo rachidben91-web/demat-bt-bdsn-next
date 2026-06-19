@@ -13,13 +13,10 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "DEMAT-BT Next",
+  title: "DEMAT-BT V2",
   description: "Maquette de reconstruction Next.js pour DEMAT-BT.",
   icons: {
-    icon: [
-      { url: "/dashboard-favicon.png", type: "image/png", sizes: "192x192" },
-      { url: "/dashboard-favicon.png", type: "image/png", sizes: "512x512" },
-    ],
+    icon: [{ url: "/dashboard-favicon.png", type: "image/png", sizes: "512x512" }],
     apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
     shortcut: ["/dashboard-favicon.png"],
   },

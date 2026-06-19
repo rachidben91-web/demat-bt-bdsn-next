@@ -102,6 +102,7 @@ export type SupportJourneeData = {
     dateLabel: string;
     weekLabel: string;
     lastUpdate: string;
+    lastModifiedBy: string | null;
     editStatus: string;
     server: string;
     weatherNote: string;
@@ -333,6 +334,26 @@ function formatTimestamp(value: string | null) {
   }).format(new Date(value));
 }
 
+function formatModifierName(value: string | null | undefined) {
+  const trimmed = value?.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  const localPart = trimmed.includes("@") ? trimmed.split("@")[0] : trimmed;
+  const normalized = localPart.replace(/[._+~-]+/g, " ").trim();
+  const firstName = normalized.split(/\s+/).find(Boolean);
+
+  if (!firstName) {
+    return trimmed;
+  }
+
+  return `${firstName.charAt(0).toLocaleUpperCase("fr-FR")}${firstName
+    .slice(1)
+    .toLocaleLowerCase("fr-FR")}`;
+}
+
 function fallbackData(): SupportJourneeData {
   return {
     activityDefinitions: fallbackActivityDefinitions,
@@ -349,6 +370,7 @@ function fallbackData(): SupportJourneeData {
       ...fallbackSupportSummary,
       dayId: null,
       dayDate: null,
+      lastModifiedBy: null,
       globalObservation: "",
       lockedBy: null,
       lockedAt: null,
@@ -372,6 +394,7 @@ function buildResolvedFallbackSummary(
     weatherNote,
     savedDayStatus: `Jour maquette : ${formatDateInput(dayDate)}`,
     globalObservation: "",
+    lastModifiedBy: null,
     lockedBy: null,
     lockedAt: null,
   };
@@ -567,7 +590,7 @@ export async function getSupportJourneeData(
   siteCode?: SiteCode,
 ): Promise<SupportJourneeData> {
   const resolvedDate = selectedDate ?? new Date().toISOString().slice(0, 10);
-  const weatherBundle = await getSupportWeatherBundle(resolvedDate).catch(() => ({
+  const weatherBundle = await getSupportWeatherBundle(resolvedDate, siteCode ?? "VLG").catch(() => ({
     generatedAtLabel: "Météo indisponible",
     headerZones: [] as HeaderWeatherZone[],
     dayZones: [] as DayWeatherZone[],
@@ -896,6 +919,7 @@ export async function getSupportJourneeData(
         dateLabel: formatDateLabel(effectiveDate),
         weekLabel: supportDay?.week_label ?? formatWeekLabel(effectiveDate),
         lastUpdate: formatTimestamp(supportDay?.last_modified_at ?? null),
+        lastModifiedBy: formatModifierName(supportDay?.last_modified_by),
         editStatus: supportDay?.status ?? "draft",
         server: supportDay?.server_label ?? "Supabase",
         weatherNote: weatherBundle.weatherNote || supportDay?.weather_note || "Aucune prevision disponible.",
