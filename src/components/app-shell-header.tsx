@@ -109,7 +109,7 @@ export function AppShellHeader({
       )}
     >
       <div className="px-5 py-3.5 sm:px-6 lg:px-7">
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(620px,760px)_minmax(0,1fr)] xl:items-center">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,0.8fr)_minmax(760px,1fr)_minmax(300px,0.85fr)] xl:items-center 2xl:grid-cols-[minmax(0,0.9fr)_minmax(920px,1040px)_minmax(360px,0.85fr)]">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/85 bg-white/80 shadow-[0_8px_20px_rgba(148,163,184,0.12)]">
@@ -141,18 +141,18 @@ export function AppShellHeader({
 
           <div className="min-w-0">
             {hasHeaderStatus ? (
-              <div className="mx-auto w-full max-w-[760px] rounded-[22px] border border-sky-200/90 bg-[linear-gradient(180deg,rgba(248,251,255,0.97)_0%,rgba(228,237,251,0.97)_100%)] px-5 py-3 text-center text-slate-900 shadow-[0_18px_38px_rgba(125,146,178,0.18)] backdrop-blur">
+              <div className="mx-auto w-full max-w-[1040px] rounded-[22px] border border-sky-200/90 bg-[linear-gradient(180deg,rgba(248,251,255,0.97)_0%,rgba(228,237,251,0.97)_100%)] px-5 py-3 text-center text-slate-900 shadow-[0_18px_38px_rgba(125,146,178,0.18)] backdrop-blur">
                 <p className="text-[15px] font-semibold tracking-[0.01em] text-slate-900">
                   {headerDateTimeLabel ?? weatherGeneratedAtLabel ?? "Repère indisponible"}
                 </p>
                 <div className="mx-auto mt-2 h-px w-24 bg-[linear-gradient(90deg,transparent,rgba(59,130,246,0.35),transparent)]" />
-                <div className="mt-2 flex flex-wrap items-center justify-center gap-2 text-[11px] text-slate-700">
+                <div className="mt-2 flex flex-nowrap items-center justify-center gap-2 overflow-hidden text-[11px] text-slate-700">
                   {weatherZones.map((zone) => (
                     <span
                       key={zone.id}
                       className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-white/72 px-2.5 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]"
                     >
-                      <span>{zone.weatherIcon}</span>
+                      <span className="text-[13px] leading-none">{zone.weatherIcon}</span>
                       <span className="font-medium text-slate-800">{zone.label}</span>
                       <span className="shrink-0 text-slate-600">
                         {zone.temperatureC ?? "—"}&deg; - Pluie {zone.rainProbabilityPercent ?? "—"}%
