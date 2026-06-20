@@ -5,6 +5,7 @@ import { requireOfficeWriteModule, requireTerrainAccess } from "@/lib/auth";
 import { MESSAGE_ATTACHMENT_BUCKET, type MessagingTargetType } from "@/lib/messaging";
 import { getActiveSiteCodeOrDefault } from "@/lib/sites";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
+import { sendTerrainPushNotification } from "@/lib/terrain-push";
 
 export type MessagingActionState = {
   error: string | null;
@@ -389,6 +390,37 @@ export async function sendOfficeMessageAction(
       if (attachmentError) {
         throw new Error(attachmentError.message);
       }
+    }
+
+    if (new Date(effectivePublishAt).getTime() <= Date.now()) {
+      void sendTerrainPushNotification({
+        notification: {
+          body:
+            attachment instanceof File && attachment.size > 0
+              ? `Un document du bureau est disponible: ${title}`
+              : title,
+          data: {
+            messageId,
+            type:
+              attachment instanceof File && attachment.size > 0 ? "document" : "message",
+          },
+          requireInteraction: attachment instanceof File && attachment.size > 0,
+          tag:
+            attachment instanceof File && attachment.size > 0
+              ? `terrain-document-${messageId}`
+              : `terrain-message-${messageId}`,
+          title:
+            attachment instanceof File && attachment.size > 0
+              ? "Nouveau document terrain"
+              : "Nouveau message du bureau",
+          url:
+            attachment instanceof File && attachment.size > 0 ? "/terrain/infos" : "/terrain/messages",
+        },
+        officeAccountIds: recipients
+          .map((recipient) => recipient.account_id)
+          .filter((accountId): accountId is string => Boolean(accountId)),
+        technicianIds: recipients.map((recipient) => recipient.technician_id),
+      });
     }
 
     revalidatePath("/messagerie");

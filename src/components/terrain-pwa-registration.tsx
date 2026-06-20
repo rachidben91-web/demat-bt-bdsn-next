@@ -2,7 +2,22 @@
 
 import { useEffect } from "react";
 
-export function TerrainPwaRegistration() {
+type TerrainPwaRegistrationProps = {
+  officeAccountId: string | null;
+};
+
+const TERRAIN_ACCOUNT_KEY = "demat-terrain-account-id";
+
+async function clearTerrainCaches() {
+  if ("caches" in window) {
+    const keys = await caches.keys();
+    await Promise.all(
+      keys.filter((key) => key.startsWith("demat-terrain-")).map((key) => caches.delete(key)),
+    );
+  }
+}
+
+export function TerrainPwaRegistration({ officeAccountId }: TerrainPwaRegistrationProps) {
   useEffect(() => {
     if (!("serviceWorker" in navigator)) {
       return;
@@ -26,7 +41,7 @@ export function TerrainPwaRegistration() {
         void caches.keys().then((keys) =>
           Promise.all(
             keys
-              .filter((key) => key.startsWith("demat-terrain-shell-"))
+              .filter((key) => key.startsWith("demat-terrain-"))
               .map((key) => caches.delete(key)),
           ),
         );
@@ -35,15 +50,33 @@ export function TerrainPwaRegistration() {
       return;
     }
 
-    navigator.serviceWorker
+    const previousAccountId = window.localStorage.getItem(TERRAIN_ACCOUNT_KEY);
+
+    if (previousAccountId && officeAccountId && previousAccountId !== officeAccountId) {
+      void clearTerrainCaches();
+    }
+
+    if (officeAccountId) {
+      window.localStorage.setItem(TERRAIN_ACCOUNT_KEY, officeAccountId);
+    }
+
+    void navigator.serviceWorker
       .register("/terrain-sw.js", {
-        scope: "/terrain/",
+        scope: "/terrain",
         updateViaCache: "none",
+      })
+      .then(async () => {
+        const registration = await navigator.serviceWorker.ready;
+
+        registration.active?.postMessage({
+          type: "PREFETCH_TERRAIN_URLS",
+          urls: ["/terrain", "/terrain/journee", "/terrain/messages", "/terrain/infos"],
+        });
       })
       .catch((error) => {
         console.error("Terrain service worker registration failed", error);
       });
-  }, []);
+  }, [officeAccountId]);
 
   return null;
 }

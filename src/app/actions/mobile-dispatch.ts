@@ -5,6 +5,7 @@ import { requireTerrainAccess, requireOfficeWriteModule } from "@/lib/auth";
 import { getActiveSiteCodeOrDefault } from "@/lib/sites";
 import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 import type { DepartureInstruction } from "@/lib/mobile-dispatch";
+import { sendTerrainPushNotification } from "@/lib/terrain-push";
 
 export type MobileDispatchActionState = {
   error: string | null;
@@ -315,6 +316,25 @@ export async function publishMobileDispatchAction(
     if (itemsError) {
       throw new Error(itemsError.message);
     }
+
+    void sendTerrainPushNotification({
+      notification: {
+        body: `${btPayload.length} BT disponible(s) pour le ${missionDate}.`,
+        data: {
+          missionDate,
+          siteCode,
+          type: "dispatch",
+        },
+        requireInteraction: true,
+        tag: `terrain-dispatch-${siteCode}-${missionDate}`,
+        title: "Nouvelle mission terrain",
+        url: "/terrain/journee",
+      },
+      officeAccountIds: itemRows
+        .map((item) => item.office_account_id)
+        .filter((officeAccountId): officeAccountId is string => Boolean(officeAccountId)),
+      technicianIds: itemRows.map((item) => item.technician_id),
+    });
 
     refresh();
 

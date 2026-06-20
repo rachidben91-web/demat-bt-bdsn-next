@@ -53,7 +53,11 @@ export function TerrainInstallCard({
 
     const frameId = window.requestAnimationFrame(() => {
       setIsIos(detectIos());
-      setIsStandalone(mediaQuery.matches);
+      setIsStandalone(
+        mediaQuery.matches ||
+          ("standalone" in navigator &&
+            Boolean((navigator as Navigator & { standalone?: boolean }).standalone)),
+      );
     });
 
     function handleBeforeInstallPrompt(event: Event) {
@@ -62,7 +66,11 @@ export function TerrainInstallCard({
     }
 
     function handleDisplayModeChange(event: MediaQueryListEvent) {
-      setIsStandalone(event.matches);
+      setIsStandalone(
+        event.matches ||
+          ("standalone" in navigator &&
+            Boolean((navigator as Navigator & { standalone?: boolean }).standalone)),
+      );
     }
 
     function handleAppInstalled() {

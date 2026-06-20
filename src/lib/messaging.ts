@@ -18,6 +18,7 @@ export type MessagingTechnicianTarget = {
 };
 
 export type OfficeMessageAttachment = {
+  downloadUrl?: string | null;
   fileName: string;
   fileSize: number;
   id: string;
@@ -413,7 +414,10 @@ export async function getTerrainMessageInbox(
       const signedAttachments = await signAttachments(message.attachments);
       return {
         ...message,
-        attachments: signedAttachments,
+        attachments: signedAttachments.map((attachment) => ({
+          ...attachment,
+          downloadUrl: `/terrain/messages/attachments/${attachment.id}`,
+        })),
         replies: repliesByMessageId.get(message.id) ?? [],
       };
     }),

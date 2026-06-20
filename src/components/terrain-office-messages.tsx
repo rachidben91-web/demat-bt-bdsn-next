@@ -140,10 +140,10 @@ export function TerrainOfficeMessages({ messages }: TerrainOfficeMessagesProps) 
               {message.attachments.length > 0 ? (
                 <div className="mt-3 space-y-2">
                   {message.attachments.map((attachment) =>
-                    attachment.signedUrl ? (
+                    attachment.downloadUrl || attachment.signedUrl ? (
                       <a
                         className="block rounded-2xl border border-teal-100 bg-teal-50 px-3 py-2 text-sm font-semibold text-teal-800"
-                        href={attachment.signedUrl}
+                        href={attachment.downloadUrl ?? attachment.signedUrl ?? "#"}
                         key={attachment.id}
                         rel="noreferrer"
                         target="_blank"

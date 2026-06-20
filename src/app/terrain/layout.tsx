@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { TerrainMobileChrome } from "@/components/terrain-mobile-chrome";
+import { TerrainNetworkBanner } from "@/components/terrain-network-banner";
 import { TerrainPwaRegistration } from "@/components/terrain-pwa-registration";
 import { getCurrentAuthContext } from "@/lib/auth";
 import { getUnreadTerrainMessageCount } from "@/lib/messaging";
@@ -44,7 +45,8 @@ export default async function TerrainLayout({
 
   return (
     <>
-      <TerrainPwaRegistration />
+      <TerrainPwaRegistration officeAccountId={auth.officeAccount?.id ?? null} />
+      <TerrainNetworkBanner />
       <TerrainMobileChrome messageBadgeCount={messageBadgeCount}>
         {children}
       </TerrainMobileChrome>

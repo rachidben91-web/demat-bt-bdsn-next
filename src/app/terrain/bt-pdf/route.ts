@@ -1,6 +1,6 @@
 import { requireTerrainAccess } from "@/lib/auth";
-import { resolveTerrainBtPdfSignedUrl } from "@/lib/terrain-pdf";
-import { redirect } from "next/navigation";
+import { resolveTerrainBtPdfSource } from "@/lib/terrain-pdf";
+import { createServerSupabaseAdminClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -61,7 +61,7 @@ export async function GET(request: Request) {
   const btEntryId = url.searchParams.get("btEntryId") ?? "";
   const btId = url.searchParams.get("btId") ?? "";
 
-  const result = await resolveTerrainBtPdfSignedUrl(auth.officeAccount!, dispatchItemId, btEntryId, btId);
+  const result = await resolveTerrainBtPdfSource(auth.officeAccount!, dispatchItemId, btEntryId, btId);
 
   if ("error" in result) {
     return new Response(buildErrorHtml(result.error), {
@@ -73,5 +73,38 @@ export async function GET(request: Request) {
     });
   }
 
-  redirect(result.url);
+  const adminSupabase = createServerSupabaseAdminClient();
+
+  if (!adminSupabase) {
+    return new Response(buildErrorHtml("Client admin Supabase indisponible."), {
+      status: 500,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+
+  const { data: fileData, error: fileError } = await adminSupabase.storage
+    .from("bt-import-pdfs")
+    .download(result.storagePath);
+
+  if (fileError || !fileData) {
+    return new Response(buildErrorHtml("Impossible de telecharger le PDF BT."), {
+      status: 404,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+
+  return new Response(await fileData.arrayBuffer(), {
+    headers: {
+      "Cache-Control": "private, max-age=3600",
+      "Content-Disposition": `inline; filename="${encodeURIComponent(result.btId)}.pdf"`,
+      "Content-Type": "application/pdf",
+    },
+    status: 200,
+  });
 }

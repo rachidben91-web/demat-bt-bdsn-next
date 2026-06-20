@@ -33,12 +33,12 @@ function parseBtIds(value: unknown) {
     .filter(Boolean);
 }
 
-export async function resolveTerrainBtPdfSignedUrl(
+export async function resolveTerrainBtPdfSource(
   account: CurrentOfficeAccount,
   dispatchItemId: string,
   btEntryId: string,
   btId?: string,
-): Promise<{ url: string } | { error: string }> {
+): Promise<{ btId: string; storagePath: string } | { error: string }> {
   const adminSupabase = createServerSupabaseAdminClient();
 
   if (!adminSupabase) {
@@ -150,16 +150,39 @@ export async function resolveTerrainBtPdfSignedUrl(
       return { error: "PDF non disponible pour ce BT." };
     }
 
-    const { data: signedData, error: signedError } = await adminSupabase.storage
-      .from("bt-import-pdfs")
-      .createSignedUrl(btEntry.derived_pdf_storage_path, 30 * 60);
-
-    if (signedError || !signedData?.signedUrl) {
-      return { error: "Impossible de generer le lien PDF." };
-    }
-
-    return { url: signedData.signedUrl };
+    return {
+      btId: btEntry.bt_id,
+      storagePath: btEntry.derived_pdf_storage_path,
+    };
   } catch {
+    return { error: "Impossible de retrouver le PDF." };
+  }
+}
+
+export async function resolveTerrainBtPdfSignedUrl(
+  account: CurrentOfficeAccount,
+  dispatchItemId: string,
+  btEntryId: string,
+  btId?: string,
+): Promise<{ url: string } | { error: string }> {
+  const source = await resolveTerrainBtPdfSource(account, dispatchItemId, btEntryId, btId);
+  const adminSupabase = createServerSupabaseAdminClient();
+
+  if ("error" in source) {
+    return source;
+  }
+
+  if (!adminSupabase) {
+    return { error: "Client admin Supabase indisponible. Verifie la cle service role." };
+  }
+
+  const { data: signedData, error: signedError } = await adminSupabase.storage
+    .from("bt-import-pdfs")
+    .createSignedUrl(source.storagePath, 30 * 60);
+
+  if (signedError || !signedData?.signedUrl) {
     return { error: "Impossible de generer le lien PDF." };
   }
+
+  return { url: signedData.signedUrl };
 }
