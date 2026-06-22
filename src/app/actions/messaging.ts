@@ -490,10 +490,6 @@ export async function markTerrainMessagesAsReadAction(
       throw new Error(error.message);
     }
 
-    revalidatePath("/terrain/messages");
-    revalidatePath("/terrain");
-    revalidatePath("/messagerie");
-
     return {
       error: null,
       success: "Messages marques comme lus.",

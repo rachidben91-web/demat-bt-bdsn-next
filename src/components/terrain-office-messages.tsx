@@ -1,7 +1,7 @@
 "use client";
 
 import { Send } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useActionState } from "react";
 import {
   markTerrainMessagesAsReadAction,
@@ -34,17 +34,26 @@ export function TerrainOfficeMessages({ messages }: TerrainOfficeMessagesProps) 
   );
   const [openReplyId, setOpenReplyId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const unreadRecipientIds = messages
-    .map((message) => message.currentRecipientId)
-    .filter(
-      (recipientId, index): recipientId is string =>
-        Boolean(recipientId && !messages[index]?.currentReadAt),
-    );
+  const [locallyReadRecipientIds, setLocallyReadRecipientIds] = useState<string[]>([]);
+  const hasMarkedReadRef = useRef(false);
+  const unreadRecipientIds = useMemo(
+    () =>
+      messages
+        .map((message) => message.currentRecipientId)
+        .filter(
+          (recipientId, index): recipientId is string =>
+            Boolean(recipientId && !messages[index]?.currentReadAt),
+        ),
+    [messages],
+  );
 
   useEffect(() => {
-    if (unreadRecipientIds.length === 0) {
+    if (hasMarkedReadRef.current || unreadRecipientIds.length === 0) {
       return;
     }
+
+    hasMarkedReadRef.current = true;
+    setLocallyReadRecipientIds(unreadRecipientIds);
 
     const formData = new FormData();
 
@@ -72,7 +81,11 @@ export function TerrainOfficeMessages({ messages }: TerrainOfficeMessagesProps) 
       </p>
       <div className="mt-3 space-y-3">
         {messages.map((message) => {
-          const isRead = Boolean(message.currentReadAt);
+          const isRead = Boolean(
+            message.currentReadAt ||
+              (message.currentRecipientId &&
+                locallyReadRecipientIds.includes(message.currentRecipientId)),
+          );
           const senderLabel = message.sentByName || message.sentByEmail;
 
           return (
@@ -169,6 +182,7 @@ export function TerrainOfficeMessages({ messages }: TerrainOfficeMessagesProps) 
                     <label className="block text-xs font-semibold uppercase tracking-[0.1em] text-teal-800">
                       Reponse au bureau
                       <textarea
+                        autoFocus
                         className="mt-2 min-h-24 w-full resize-y rounded-2xl border border-teal-200 bg-white px-3 py-3 text-sm text-slate-900 outline-none focus:border-teal-400"
                         name="body"
                         onChange={(event) =>
