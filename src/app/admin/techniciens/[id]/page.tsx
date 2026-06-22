@@ -1,9 +1,14 @@
 import { deactivateTechnicianAction, updateTechnicianAction } from "@/app/admin/techniciens/actions";
+import { ResetPasswordForm } from "@/app/admin/acces/reset-password-form";
 import { TechnicianForm } from "@/app/admin/techniciens/technician-form";
 import { AppShellHeader } from "@/components/app-shell-header";
 import { getManagerOptions, getTechnicianById } from "@/lib/admin-technicians";
 import { getOfficeAccountByTechnicianId } from "@/lib/admin-office-accounts";
-import { getReadableOfficeModules, requireOfficeModule } from "@/lib/auth";
+import {
+  getReadableOfficeModules,
+  hasOfficeModuleWriteAccess,
+  requireOfficeModule,
+} from "@/lib/auth";
 import { getModuleTheme } from "@/lib/module-theme";
 import { getActiveSiteCodeOrDefault } from "@/lib/sites";
 import {
@@ -21,11 +26,13 @@ export default async function TechnicianDetailPage(
   const allowedModules = getReadableOfficeModules(auth);
   const activeSiteCode = await getActiveSiteCodeOrDefault();
   const { id } = await props.params;
-  const canManageAccess = auth.role === "admin" || allowedModules.includes("office_access");
+  const canOpenAccessWorkspace =
+    hasOfficeModuleWriteAccess(auth, "office_access") ||
+    hasOfficeModuleWriteAccess(auth, "technicians_admin");
   const [managers, technician, linkedAccess] = await Promise.all([
     getManagerOptions(activeSiteCode),
     getTechnicianById(id),
-    canManageAccess ? getOfficeAccountByTechnicianId(id) : Promise.resolve(null),
+    canOpenAccessWorkspace ? getOfficeAccountByTechnicianId(id) : Promise.resolve(null),
   ]);
 
   if (!technician) {
@@ -94,17 +101,21 @@ export default async function TechnicianDetailPage(
                 </p>
               </div>
 
-              {canManageAccess ? (
-                <Link
-                  className="inline-flex items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(37,99,235,0.24)]"
-                  href={`/admin/techniciens/${technician.id}/access`}
-                >
-                  {linkedAccess ? "Gerer l'acces terrain" : "Creer un acces terrain"}
-                </Link>
+              {canOpenAccessWorkspace ? (
+                linkedAccess ? (
+                  <ResetPasswordForm accountId={linkedAccess.id} compact />
+                ) : (
+                  <Link
+                    className="inline-flex items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(37,99,235,0.24)]"
+                    href={`/admin/techniciens/${technician.id}/access`}
+                  >
+                    Creer un acces terrain
+                  </Link>
+                )
               ) : null}
             </div>
 
-            {canManageAccess ? (
+            {canOpenAccessWorkspace ? (
               linkedAccess ? (
                 <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                   <div className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -159,8 +170,9 @@ export default async function TechnicianDetailPage(
               )
             ) : (
               <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-7 text-amber-800">
-                La fiche technicien est visible, mais la gestion des acces terrain demande aussi
-                le droit sur le module <span className="font-semibold">Acces</span>.
+                La fiche technicien est visible, mais la gestion des acces terrain demande un
+                droit d&apos;ecriture sur <span className="font-semibold">Admin tech</span> ou un
+                acces au module <span className="font-semibold">Acces</span>.
               </div>
             )}
           </section>

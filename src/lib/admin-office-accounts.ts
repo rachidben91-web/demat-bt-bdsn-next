@@ -1,4 +1,8 @@
-import { createServerSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/server";
+import {
+  createServerSupabaseAdminClient,
+  createServerSupabaseClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase/server";
 import type { SiteCode } from "@/lib/site-options";
 import {
   createEmptyOfficeModulePermissions,
@@ -65,12 +69,22 @@ function mapOfficeAccountRow(item: OfficeAccountQueryRow): OfficeAccountAdminRow
   };
 }
 
+async function getOfficeAccountsReader() {
+  const adminClient = createServerSupabaseAdminClient();
+
+  if (adminClient) {
+    return adminClient;
+  }
+
+  return createServerSupabaseClient();
+}
+
 export async function getOfficeAccounts(siteCode?: SiteCode): Promise<OfficeAccountAdminRow[]> {
   if (!isSupabaseConfigured()) {
     return [];
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await getOfficeAccountsReader();
   const { data, error } = await supabase
     .from("office_accounts")
     .select(
@@ -88,7 +102,9 @@ export async function getOfficeAccounts(siteCode?: SiteCode): Promise<OfficeAcco
     return accounts;
   }
 
-  return accounts.filter((account) => account.technicianSiteCode === siteCode);
+  return accounts.filter(
+    (account) => !account.technicianId || account.technicianSiteCode === siteCode,
+  );
 }
 
 export async function getOfficeAccountById(
@@ -98,7 +114,7 @@ export async function getOfficeAccountById(
     return null;
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await getOfficeAccountsReader();
   const { data, error } = await supabase
     .from("office_accounts")
     .select(
@@ -121,7 +137,7 @@ export async function getOfficeAccountByTechnicianId(
     return null;
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await getOfficeAccountsReader();
   const { data, error } = await supabase
     .from("office_accounts")
     .select(
@@ -144,7 +160,7 @@ export async function getOfficeModuleAccessRows(
     return [];
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await getOfficeAccountsReader();
   const { data, error } = await supabase
     .from("office_module_access")
     .select("office_account_id, module_key, permission_level")
@@ -188,7 +204,7 @@ export async function getTechniciansForOfficeAccess(
     return [];
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await getOfficeAccountsReader();
   const [{ data: technicians, error: techniciansError }, { data: linkedAccounts, error: linkedError }] =
     await Promise.all([
       supabase

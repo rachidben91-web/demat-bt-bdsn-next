@@ -9,7 +9,11 @@ import {
   getOfficeAccountByTechnicianId,
   getTechniciansForOfficeAccess,
 } from "@/lib/admin-office-accounts";
-import { getReadableOfficeModules, requireOfficeModule } from "@/lib/auth";
+import {
+  getCurrentAuthContext,
+  getReadableOfficeModules,
+  hasOfficeModuleWriteAccess,
+} from "@/lib/auth";
 import { getModuleTheme } from "@/lib/module-theme";
 import { getActiveSiteCodeOrDefault } from "@/lib/sites";
 import {
@@ -17,12 +21,25 @@ import {
   OFFICE_ROLE_LABELS,
   TERRAIN_ROLE_LABELS,
 } from "@/lib/office-access";
+import { redirect } from "next/navigation";
 
 export default async function TechnicianAccessPage(
   props: PageProps<"/admin/techniciens/[id]/access">,
 ) {
   const adminTheme = getModuleTheme("admin");
-  const auth = await requireOfficeModule("office_access");
+  const auth = await getCurrentAuthContext();
+
+  if (auth.configured && !auth.user) {
+    redirect("/login");
+  }
+
+  const canManageOfficeAccess = hasOfficeModuleWriteAccess(auth, "office_access");
+  const canManageTechnicianAccess = hasOfficeModuleWriteAccess(auth, "technicians_admin");
+
+  if (!canManageOfficeAccess && !canManageTechnicianAccess) {
+    redirect("/login");
+  }
+
   const allowedModules = getReadableOfficeModules(auth);
   const activeSiteCode = await getActiveSiteCodeOrDefault();
   const { id } = await props.params;
@@ -37,6 +54,8 @@ export default async function TechnicianAccessPage(
   }
 
   const returnHref = `/admin/techniciens/${technician.id}`;
+  const canUseLimitedTerrainAccess =
+    !canManageOfficeAccess && (!account || !account.canAccessOfficeApp);
 
   return (
     <main className={`min-h-screen px-4 py-4 text-slate-900 sm:px-6 lg:px-8 ${adminTheme.pageBackgroundClassName}`}>
@@ -77,27 +96,34 @@ export default async function TechnicianAccessPage(
             ) : null}
           </div>
 
-          <div className="mt-6">
-            <AccessForm
-              account={account}
-              cancelHref={returnHref}
-              cancelLabel="Retour a la fiche technicien"
-              initialValues={{
-                accountStatus: "active",
-                canAccessOfficeApp: false,
-                canAccessTerrainApp: true,
-                fullName: technician.displayName,
-                loginIdentifier: technician.nni.toLowerCase(),
-                officeRole: null,
-                technicianId: technician.id,
-                terrainRole: "technician",
-              }}
-              mode={account ? "edit" : "create"}
-              technicians={technicians}
-            />
-          </div>
+          {canManageOfficeAccess || canUseLimitedTerrainAccess ? (
+            <div className="mt-6">
+              <AccessForm
+                account={account}
+                allowOfficeAccessControls={canManageOfficeAccess}
+                cancelHref={returnHref}
+                cancelLabel="Retour a la fiche technicien"
+                initialValues={{
+                  accountStatus: "active",
+                  canAccessOfficeApp: false,
+                  canAccessTerrainApp: true,
+                  fullName: technician.displayName,
+                  loginIdentifier: technician.nni.toLowerCase(),
+                  officeRole: null,
+                  technicianId: technician.id,
+                  terrainRole: "technician",
+                }}
+                lockTechnicianLink={!canManageOfficeAccess}
+                managementScope="technician"
+                mode={account ? "edit" : "create"}
+                requiredTechnicianId={technician.id}
+                showTerrainOnlyNotice={!canManageOfficeAccess}
+                technicians={technicians}
+              />
+            </div>
+          ) : null}
 
-          {account ? (
+          {account && (canManageOfficeAccess || canUseLimitedTerrainAccess) ? (
             <>
               <div className="mt-6">
                 <ResetPasswordForm accountId={account.id} />
@@ -112,6 +138,13 @@ export default async function TechnicianAccessPage(
                 />
               </div>
             </>
+          ) : null}
+
+          {account && !canManageOfficeAccess && account.canAccessOfficeApp ? (
+            <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-7 text-amber-800">
+              Ce compte possede aussi un acces bureau. Pour modifier ses droits bureau ou ses
+              permissions modules, ouvre-le depuis le module <span className="font-semibold">Acces</span>.
+            </div>
           ) : null}
 
           <div className="mt-6 flex gap-3">

@@ -1,7 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getCurrentAuthContext, requireAdmin } from "@/lib/auth";
+import {
+  getCurrentAuthContext,
+  hasOfficeModuleWriteAccess,
+} from "@/lib/auth";
 import {
   OFFICE_ACCOUNT_STATUS_OPTIONS,
   OFFICE_MODULE_KEYS,
@@ -75,12 +78,117 @@ function readPermissionLevel(
   return isOfficePermissionLevel(value) ? value : "none";
 }
 
+type AccessManagementScope = "general" | "technician";
+
+type OfficeAccountGuardRow = {
+  id: string;
+  auth_user_id: string;
+  full_name: string;
+  technician_id: string | null;
+  can_access_office_app: boolean;
+  can_access_terrain_app: boolean;
+};
+
+function resolveManagementScope(formData: FormData): AccessManagementScope {
+  return formData.get("management_scope") === "technician" ? "technician" : "general";
+}
+
+async function requireAccessActionAuth(scope: AccessManagementScope) {
+  const auth = await getCurrentAuthContext();
+
+  if (auth.configured && !auth.user) {
+    throw new Error("Session invalide. Reconnecte-toi puis recommence.");
+  }
+
+  if (!auth.configured) {
+    return {
+      auth,
+      canManageOfficeAccess: true,
+      canManageTechnicianAccess: true,
+    };
+  }
+
+  const canManageOfficeAccess = hasOfficeModuleWriteAccess(auth, "office_access");
+  const canManageTechnicianAccess = hasOfficeModuleWriteAccess(auth, "technicians_admin");
+
+  if (scope === "general" && !canManageOfficeAccess) {
+    throw new Error("Le module Acces en ecriture est requis pour cette action.");
+  }
+
+  if (scope === "technician" && !canManageOfficeAccess && !canManageTechnicianAccess) {
+    throw new Error("Les droits Admin tech ou Acces en ecriture sont requis.");
+  }
+
+  return {
+    auth,
+    canManageOfficeAccess,
+    canManageTechnicianAccess,
+  };
+}
+
+function validateTechnicianScopedMutation(params: {
+  canManageOfficeAccess: boolean;
+  canAccessOfficeApp: boolean;
+  canAccessTerrainApp: boolean;
+  expectedTechnicianId: string | null;
+  modulePermissions: Record<OfficeModuleKey, OfficePermissionLevel>;
+  officeRole: OfficeRole | null;
+  scope: AccessManagementScope;
+  technicianId: string | null;
+}) {
+  const {
+    canManageOfficeAccess,
+    canAccessOfficeApp,
+    canAccessTerrainApp,
+    expectedTechnicianId,
+    modulePermissions,
+    officeRole,
+    scope,
+    technicianId,
+  } = params;
+
+  if (scope !== "technician" || canManageOfficeAccess) {
+    return;
+  }
+
+  if (!expectedTechnicianId || technicianId !== expectedTechnicianId) {
+    throw new Error("Ce compte doit rester rattache au technicien ouvert.");
+  }
+
+  if (canAccessOfficeApp) {
+    throw new Error("Depuis la fiche technicien, seuls les acces terrain sont autorises.");
+  }
+
+  if (!canAccessTerrainApp) {
+    throw new Error("L'acces terrain doit rester actif depuis cette fiche.");
+  }
+
+  if (officeRole) {
+    throw new Error("Le role bureau ne peut pas etre modifie depuis la fiche technicien.");
+  }
+
+  if (Object.values(modulePermissions).some((level) => level !== "none")) {
+    throw new Error("Les permissions bureau ne peuvent pas etre modifiees ici.");
+  }
+}
+
+function ensureTechnicianScopedAccountAllowed(
+  account: OfficeAccountGuardRow,
+  auth: Awaited<ReturnType<typeof getCurrentAuthContext>>,
+) {
+  if (auth.user?.id === account.auth_user_id) {
+    throw new Error("Tu ne peux pas modifier ton propre acces.");
+  }
+
+  if (!account.technician_id || account.can_access_office_app || !account.can_access_terrain_app) {
+    throw new Error("Ce compte doit etre gere depuis le module Acces.");
+  }
+}
+
 export async function createOfficeAccessAction(
   _previousState: CreateOfficeAccessFormState,
   formData: FormData,
 ): Promise<CreateOfficeAccessFormState> {
-  await requireAdmin();
-
   const adminSupabase = createServerSupabaseAdminClient();
 
   if (!adminSupabase) {
@@ -92,10 +200,13 @@ export async function createOfficeAccessAction(
   }
 
   try {
+    const scope = resolveManagementScope(formData);
+    const { canManageOfficeAccess } = await requireAccessActionAuth(scope);
     const fullName = toRequiredString(formData.get("full_name"), "Nom complet");
     const email = toRequiredString(formData.get("email"), "Email").toLowerCase();
     const loginIdentifier = normalizeLoginIdentifier(formData.get("login_identifier"));
     const technicianId = toOptionalString(formData.get("technician_id"));
+    const expectedTechnicianId = toOptionalString(formData.get("expected_technician_id"));
     const officeRole = normalizeOfficeRole(formData.get("office_role"));
     const terrainRole = normalizeTerrainRole(formData.get("terrain_role"));
     const accountStatus = normalizeAccountStatus(formData.get("account_status"));
@@ -124,6 +235,17 @@ export async function createOfficeAccessAction(
     if (canAccessOfficeApp && !Object.values(modulePermissions).some((level) => level !== "none")) {
       throw new Error("Selectionne au moins un module bureau accessible.");
     }
+
+    validateTechnicianScopedMutation({
+      canManageOfficeAccess,
+      canAccessOfficeApp,
+      canAccessTerrainApp,
+      expectedTechnicianId,
+      modulePermissions,
+      officeRole,
+      scope,
+      technicianId,
+    });
 
     if (technicianId) {
       const { data: existingLink, error: existingLinkError } = await adminSupabase
@@ -233,8 +355,6 @@ export async function updateOfficeAccessAction(
   _previousState: CreateOfficeAccessFormState,
   formData: FormData,
 ): Promise<CreateOfficeAccessFormState> {
-  await requireAdmin();
-
   const adminSupabase = createServerSupabaseAdminClient();
 
   if (!adminSupabase) {
@@ -246,12 +366,15 @@ export async function updateOfficeAccessAction(
   }
 
   try {
+    const scope = resolveManagementScope(formData);
+    const { canManageOfficeAccess } = await requireAccessActionAuth(scope);
     const officeAccountId = toRequiredString(formData.get("office_account_id"), "Compte");
     const authUserId = toRequiredString(formData.get("auth_user_id"), "Utilisateur Auth");
     const fullName = toRequiredString(formData.get("full_name"), "Nom complet");
     const email = toRequiredString(formData.get("email"), "Email").toLowerCase();
     const loginIdentifier = normalizeLoginIdentifier(formData.get("login_identifier"));
     const technicianId = toOptionalString(formData.get("technician_id"));
+    const expectedTechnicianId = toOptionalString(formData.get("expected_technician_id"));
     const officeRole = normalizeOfficeRole(formData.get("office_role"));
     const terrainRole = normalizeTerrainRole(formData.get("terrain_role"));
     const accountStatus = normalizeAccountStatus(formData.get("account_status"));
@@ -297,6 +420,17 @@ export async function updateOfficeAccessAction(
     if (canAccessOfficeApp && !Object.values(modulePermissions).some((level) => level !== "none")) {
       throw new Error("Selectionne au moins un module bureau accessible.");
     }
+
+    validateTechnicianScopedMutation({
+      canManageOfficeAccess,
+      canAccessOfficeApp,
+      canAccessTerrainApp,
+      expectedTechnicianId,
+      modulePermissions,
+      officeRole,
+      scope,
+      technicianId,
+    });
 
     const { error: authUpdateError } = await adminSupabase.auth.admin.updateUserById(authUserId, {
       email,
@@ -374,7 +508,6 @@ export async function resetOfficePasswordAction(
   officeAccountId: string,
   _previousState: CreateOfficeAccessFormState,
 ): Promise<CreateOfficeAccessFormState> {
-  await requireAdmin();
   void _previousState;
 
   const adminSupabase = createServerSupabaseAdminClient();
@@ -388,14 +521,19 @@ export async function resetOfficePasswordAction(
   }
 
   try {
+    const { auth, canManageOfficeAccess } = await requireAccessActionAuth("technician");
     const { data: account, error: accountError } = await adminSupabase
       .from("office_accounts")
-      .select("id, auth_user_id, full_name")
+      .select("id, auth_user_id, full_name, technician_id, can_access_office_app, can_access_terrain_app")
       .eq("id", officeAccountId)
       .maybeSingle();
 
     if (accountError || !account) {
       throw new Error(accountError?.message ?? "Compte introuvable.");
+    }
+
+    if (!canManageOfficeAccess) {
+      ensureTechnicianScopedAccountAllowed(account as OfficeAccountGuardRow, auth);
     }
 
     const temporaryPassword = buildTemporaryOfficePassword(account.full_name);
@@ -443,7 +581,6 @@ export async function deactivateOfficeAccessAction(
   officeAccountId: string,
   _previousState: CreateOfficeAccessFormState,
 ): Promise<CreateOfficeAccessFormState> {
-  await requireAdmin();
   void _previousState;
 
   const adminSupabase = createServerSupabaseAdminClient();
@@ -457,10 +594,10 @@ export async function deactivateOfficeAccessAction(
   }
 
   try {
-    const auth = await getCurrentAuthContext();
+    const { auth, canManageOfficeAccess } = await requireAccessActionAuth("technician");
     const { data: account, error: accountError } = await adminSupabase
       .from("office_accounts")
-      .select("id, auth_user_id, full_name")
+      .select("id, auth_user_id, full_name, technician_id, can_access_office_app, can_access_terrain_app")
       .eq("id", officeAccountId)
       .maybeSingle();
 
@@ -468,7 +605,9 @@ export async function deactivateOfficeAccessAction(
       throw new Error(accountError?.message ?? "Compte introuvable.");
     }
 
-    if (auth.user?.id === account.auth_user_id) {
+    if (!canManageOfficeAccess) {
+      ensureTechnicianScopedAccountAllowed(account as OfficeAccountGuardRow, auth);
+    } else if (auth.user?.id === account.auth_user_id) {
       throw new Error("Tu ne peux pas desactiver ton propre acces.");
     }
 
@@ -504,7 +643,6 @@ export async function reactivateOfficeAccessAction(
   officeAccountId: string,
   _previousState: CreateOfficeAccessFormState,
 ): Promise<CreateOfficeAccessFormState> {
-  await requireAdmin();
   void _previousState;
 
   const adminSupabase = createServerSupabaseAdminClient();
@@ -518,14 +656,19 @@ export async function reactivateOfficeAccessAction(
   }
 
   try {
+    const { auth, canManageOfficeAccess } = await requireAccessActionAuth("technician");
     const { data: account, error: accountError } = await adminSupabase
       .from("office_accounts")
-      .select("id, full_name")
+      .select("id, auth_user_id, full_name, technician_id, can_access_office_app, can_access_terrain_app")
       .eq("id", officeAccountId)
       .maybeSingle();
 
     if (accountError || !account) {
       throw new Error(accountError?.message ?? "Compte introuvable.");
+    }
+
+    if (!canManageOfficeAccess) {
+      ensureTechnicianScopedAccountAllowed(account as OfficeAccountGuardRow, auth);
     }
 
     const { error: updateError } = await adminSupabase
@@ -560,7 +703,6 @@ export async function deleteOfficeAccessAction(
   officeAccountId: string,
   _previousState: CreateOfficeAccessFormState,
 ): Promise<CreateOfficeAccessFormState> {
-  await requireAdmin();
   void _previousState;
 
   const adminSupabase = createServerSupabaseAdminClient();
@@ -574,10 +716,10 @@ export async function deleteOfficeAccessAction(
   }
 
   try {
-    const auth = await getCurrentAuthContext();
+    const { auth, canManageOfficeAccess } = await requireAccessActionAuth("technician");
     const { data: account, error: accountError } = await adminSupabase
       .from("office_accounts")
-      .select("id, auth_user_id, full_name")
+      .select("id, auth_user_id, full_name, technician_id, can_access_office_app, can_access_terrain_app")
       .eq("id", officeAccountId)
       .maybeSingle();
 
@@ -585,7 +727,9 @@ export async function deleteOfficeAccessAction(
       throw new Error(accountError?.message ?? "Compte introuvable.");
     }
 
-    if (auth.user?.id === account.auth_user_id) {
+    if (!canManageOfficeAccess) {
+      ensureTechnicianScopedAccountAllowed(account as OfficeAccountGuardRow, auth);
+    } else if (auth.user?.id === account.auth_user_id) {
       throw new Error("Tu ne peux pas supprimer ton propre acces.");
     }
 

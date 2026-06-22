@@ -311,6 +311,38 @@ export async function requireOfficeWriteModule(moduleKey: OfficeModuleKey) {
   return auth;
 }
 
+export function hasOfficeModuleReadAccess(
+  auth: Awaited<ReturnType<typeof getCurrentAuthContext>>,
+  moduleKey: OfficeModuleKey,
+): boolean {
+  if (auth.role === "admin") {
+    return true;
+  }
+
+  return Boolean(
+    auth.officeAccount &&
+      auth.officeAccount.accountStatus === "active" &&
+      auth.officeAccount.canAccessOfficeApp &&
+      canReadOfficeModule(auth.officeAccount.modulePermissions, moduleKey),
+  );
+}
+
+export function hasOfficeModuleWriteAccess(
+  auth: Awaited<ReturnType<typeof getCurrentAuthContext>>,
+  moduleKey: OfficeModuleKey,
+): boolean {
+  if (auth.role === "admin") {
+    return true;
+  }
+
+  return Boolean(
+    auth.officeAccount &&
+      auth.officeAccount.accountStatus === "active" &&
+      auth.officeAccount.canAccessOfficeApp &&
+      canWriteOfficeModule(auth.officeAccount.modulePermissions, moduleKey),
+  );
+}
+
 export function getReadableOfficeModules(
   auth: Awaited<ReturnType<typeof getCurrentAuthContext>>,
 ): OfficeModuleKey[] {
