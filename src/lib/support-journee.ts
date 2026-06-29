@@ -275,6 +275,46 @@ async function fetchActivityDefinitionRows(
   });
 }
 
+async function fetchSupportDayEntriesForSite(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  supportDayIds: string[],
+  siteCode: SiteCode,
+): Promise<SupportEntryRow[]> {
+  if (supportDayIds.length === 0) {
+    return [];
+  }
+
+  const pageSize = 1000;
+  const entries: SupportEntryRow[] = [];
+
+  for (let start = 0; ; start += pageSize) {
+    const end = start + pageSize - 1;
+    const { data, error } = await supabase
+      .from("support_day_entries")
+      .select(
+        "support_day_id, id, technician_id, activity_id, work_mode, observation, brief_agency, brief_remote, debrief_agency, debrief_remote, gtv, display_order, technicians!inner(site_code)",
+      )
+      .eq("technicians.site_code", siteCode)
+      .in("support_day_id", supportDayIds)
+      .order("support_day_id", { ascending: true })
+      .order("display_order", { ascending: true })
+      .range(start, end);
+
+    if (error) {
+      throw error;
+    }
+
+    const page = (data ?? []) as SupportEntryRow[];
+    entries.push(...page);
+
+    if (page.length < pageSize) {
+      break;
+    }
+  }
+
+  return entries;
+}
+
 function mapStatus(status: "present" | "absent" | "greve"): ActivityStatus {
   if (status === "present") {
     return "Present";
@@ -698,24 +738,13 @@ export async function getSupportJourneeData(
     const effectiveDate = selectedDate ?? supportDays[0]?.day_date ?? resolvedDate;
     const supportDay = supportDays.find((item) => item.day_date === effectiveDate) ?? null;
 
-    const allEntriesResult = supportDays.length
-      ? await supabase
-          .from("support_day_entries")
-          .select(
-            "support_day_id, id, technician_id, activity_id, work_mode, observation, brief_agency, brief_remote, debrief_agency, debrief_remote, gtv, display_order, technicians!inner(site_code)",
-          )
-          .eq("technicians.site_code", siteCode ?? "VLG")
-          .in(
-            "support_day_id",
-            supportDays.map((item) => item.id),
-          )
-      : { data: [], error: null };
+    const allEntries = await fetchSupportDayEntriesForSite(
+      supabase,
+      supportDays.map((item) => item.id),
+      siteCode ?? "VLG",
+    );
 
-    if (allEntriesResult.error) {
-      return fallbackData();
-    }
-
-    const entries = ((allEntriesResult.data ?? []) as SupportEntryRow[])
+    const entries = allEntries
       .filter((entry) => (supportDay ? entry.support_day_id === supportDay.id : false))
       .sort((left, right) => left.display_order - right.display_order);
     const technicianById = new Map(technicians.map((item) => [item.id, item]));
@@ -759,7 +788,7 @@ export async function getSupportJourneeData(
 
     const dayStateByDate = new Map<string, boolean>();
     supportDays.forEach((day) => dayStateByDate.set(day.day_date, false));
-    ((allEntriesResult.data ?? []) as SupportEntryRow[]).forEach((entry) => {
+    allEntries.forEach((entry) => {
       const relatedDay = supportDays.find((day) => day.id === entry.support_day_id);
 
       if (!relatedDay) {
@@ -850,7 +879,6 @@ export async function getSupportJourneeData(
       }));
 
     const supportDayById = new Map(supportDays.map((day) => [day.id, day]));
-    const allEntries = (allEntriesResult.data ?? []) as SupportEntryRow[];
     const filledHistoryEntries = allEntries
       .filter(
         (entry) =>

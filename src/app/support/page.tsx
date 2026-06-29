@@ -3,6 +3,8 @@ import { getReadableOfficeModules, requireOfficeModule } from "@/lib/auth";
 import { getActiveSiteCodeOrDefault } from "@/lib/sites";
 import { getSupportJourneeData } from "@/lib/support-journee";
 
+export const dynamic = "force-dynamic";
+
 type SupportPageProps = {
   searchParams?: Promise<{
     date?: string;
@@ -22,7 +24,7 @@ export default async function SupportPage({ searchParams }: SupportPageProps) {
       allowedModules={allowedModules}
       data={data}
       isSuperAdmin={auth.role === "admin"}
-      key={data.supportSummary.dayDate ?? "support-journee"}
+      key={`${activeSiteCode}-${data.supportSummary.dayDate ?? "support-journee"}`}
       role={auth.role ?? auth.officeAccount?.officeRole ?? null}
       userEmail={auth.user?.email ?? null}
     />
