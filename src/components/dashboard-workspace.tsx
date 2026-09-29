@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { BellRing, Sparkles } from "lucide-react";
 import { AppShellHeader } from "@/components/app-shell-header";
 import { ModuleIcon } from "@/components/module-icon";
 import { getModuleTheme } from "@/lib/module-theme";
@@ -29,6 +30,7 @@ function cx(...parts: Array<string | false | null | undefined>) {
 export function DashboardWorkspace(props: DashboardWorkspaceProps) {
   const { activeSiteCode, allowedModules = [], currentDateLabel, headerDateTimeLabel, isSuperAdmin = false, role, userEmail, supportData } = props;
   const dashboardTheme = getModuleTheme("dashboard");
+  const canAccessSupportDay = allowedModules.includes("support_journee") || isSuperAdmin;
   const moduleCards = [
     {
       id: "support",
@@ -39,7 +41,7 @@ export function DashboardWorkspace(props: DashboardWorkspaceProps) {
       tone: "from-emerald-50 via-white to-emerald-100/70",
       border: "border-emerald-200/80",
       accent: "text-emerald-700",
-      visible: allowedModules.includes("support_journee") || isSuperAdmin,
+      visible: canAccessSupportDay,
     },
     {
       id: "referent",
@@ -160,6 +162,44 @@ export function DashboardWorkspace(props: DashboardWorkspaceProps) {
               </div>
             </div>
           </div>
+
+           {canAccessSupportDay ? (
+             <Link
+               className="group relative mt-5 block overflow-hidden rounded-[24px] border border-amber-300 bg-[linear-gradient(135deg,#fff8e8_0%,#fffdf7_52%,#ffedd5_100%)] p-5 shadow-[0_18px_42px_rgba(217,119,6,0.14)] transition duration-200 hover:-translate-y-0.5 hover:border-amber-400 hover:shadow-[0_22px_48px_rgba(217,119,6,0.2)] sm:p-6"
+               href="/support"
+             >
+               <div className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-amber-300/30 blur-2xl" />
+               <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                 <div className="flex items-start gap-4">
+                   <div className="relative inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] border border-amber-200 bg-white text-amber-700 shadow-[0_12px_26px_rgba(217,119,6,0.16)]">
+                     <span className="absolute h-3 w-3 rounded-full bg-amber-400 opacity-75 animate-ping" />
+                     <BellRing aria-hidden="true" className="relative h-7 w-7" />
+                   </div>
+                   <div>
+                     <div className="flex flex-wrap items-center gap-2">
+                       <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-700">
+                         Nouveauté · v1.3.2
+                       </p>
+                       <span className="inline-flex items-center gap-1 rounded-full bg-amber-200/80 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-amber-900">
+                         <span className="h-1.5 w-1.5 rounded-full bg-amber-600" />
+                         À découvrir
+                       </span>
+                     </div>
+                     <h3 className="mt-2 text-xl font-semibold tracking-[-0.02em] text-slate-950">
+                       Reprise forcée du Support Journée
+                     </h3>
+                     <p className="mt-1.5 max-w-3xl text-sm leading-6 text-slate-700">
+                       Lorsqu&apos;un référent est indisponible, un autre référent peut désormais reprendre le support verrouillé et poursuivre l&apos;organisation de la journée.
+                     </p>
+                   </div>
+                 </div>
+                 <span className="inline-flex shrink-0 items-center gap-2 text-sm font-semibold text-amber-900">
+                   Voir le Support Journée
+                   <Sparkles aria-hidden="true" className="h-4 w-4 transition group-hover:scale-110" />
+                 </span>
+               </div>
+             </Link>
+           ) : null}
 
           <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
