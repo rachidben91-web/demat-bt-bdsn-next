@@ -345,6 +345,89 @@ export async function takeSupportDayControl(
   }
 }
 
+export async function forceSupportDayControl(
+  dayId: string,
+): Promise<SupportJourneeActionResult> {
+  try {
+    const context = await getAuthorizedContext(dayId);
+
+    if (!context.supabase || !context.userEmail || !context.day) {
+      return {
+        ok: false,
+        message: "Supabase n'est pas configure pour cette instance.",
+      };
+    }
+
+    const previousLockedBy = context.day.locked_by;
+
+    if (!previousLockedBy || previousLockedBy === context.userEmail) {
+      return {
+        ok: false,
+        message: "Cette journee n'est plus detenue par un autre referent.",
+        editStatus: context.day.status,
+        lockedBy: context.day.locked_by,
+        lockedAt: context.day.locked_at,
+      };
+    }
+
+    const now = new Date().toISOString();
+    const { data: transferredDay, error: transferError } = await context.supabase
+      .from("support_days")
+      .update({
+        status: "in_progress",
+        locked_by: context.userEmail,
+        locked_at: now,
+        last_modified_by: context.userEmail,
+        last_modified_at: now,
+      })
+      .eq("id", dayId)
+      .eq("site_code", context.day.site_code)
+      .eq("locked_by", previousLockedBy)
+      .select("id")
+      .maybeSingle();
+
+    if (transferError) {
+      throw transferError;
+    }
+
+    if (!transferredDay) {
+      return {
+        ok: false,
+        message: "La prise en main a change entre-temps. Actualisez la journee avant de reessayer.",
+      };
+    }
+
+    const { error: historyError } = await context.supabase
+      .from("support_day_control_history")
+      .insert({
+        support_day_id: dayId,
+        previous_locked_by: previousLockedBy,
+        taken_by: context.userEmail,
+        taken_at: now,
+      });
+
+    if (historyError) {
+      throw historyError;
+    }
+
+    return {
+      ok: true,
+      message: `Prise en main forcee : ${previousLockedBy} a ete remplace par ${context.userEmail}.`,
+      dayId,
+      editStatus: "in_progress",
+      lastModifiedAt: now,
+      lastModifiedBy: context.userEmail,
+      lockedBy: context.userEmail,
+      lockedAt: now,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "Erreur de reprise forcee.",
+    };
+  }
+}
+
 export async function releaseSupportDayControl(
   dayId: string,
 ): Promise<SupportJourneeActionResult> {

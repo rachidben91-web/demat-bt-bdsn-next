@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { AlertTriangle, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   createActivityDefinition,
   deactivateActivityDefinition,
+  forceSupportDayControl,
   releaseSupportDayControl,
   saveSupportDayAssignments,
   takeSupportDayControl,
@@ -370,6 +371,7 @@ export function SupportJourneeWorkspace({
   const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
   const [editingActivity, setEditingActivity] = useState<ActivityDraft | null>(null);
   const [isSavingAssignments, setIsSavingAssignments] = useState(false);
+  const [forceTakeoverConfirmationOpen, setForceTakeoverConfirmationOpen] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -386,6 +388,8 @@ export function SupportJourneeWorkspace({
   const isLockedByCurrentUser = Boolean(userEmail) && lockedBy === userEmail;
   const canTakeControl =
     source === "supabase" && (!lockedBy || isLockedByCurrentUser);
+  const canForceTakeControl =
+    source === "supabase" && Boolean(lockedBy) && !isLockedByCurrentUser && Boolean(currentDayId);
   const canEdit = source === "mock" || isLockedByCurrentUser;
   const draftAssignmentsSignature = serializeAssignments(assignments);
   const savedAssignmentsSignature = serializeAssignments(savedAssignments);
@@ -920,6 +924,21 @@ export function SupportJourneeWorkspace({
         dayDate: currentDayDate,
       });
       syncActionResult(result);
+    });
+  }
+
+  function handleForceTakeControl() {
+    if (!currentDayId || !canForceTakeControl) {
+      return;
+    }
+
+    setForceTakeoverConfirmationOpen(false);
+    startTransition(async () => {
+      const result = await forceSupportDayControl(currentDayId);
+      syncActionResult(result);
+      if (result.ok) {
+        router.refresh();
+      }
     });
   }
 
@@ -1613,6 +1632,17 @@ export function SupportJourneeWorkspace({
                 >
                   {isLockedByCurrentUser ? "Prise en main active" : "Prendre la main"}
                 </button>
+                {canForceTakeControl ? (
+                  <button
+                    className="inline-flex items-center gap-2 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 shadow-sm transition hover:border-amber-400 hover:bg-amber-100"
+                    disabled={isBusy}
+                    onClick={() => setForceTakeoverConfirmationOpen(true)}
+                    type="button"
+                  >
+                    <AlertTriangle className="h-4 w-4" />
+                    Forcer la prise en main
+                  </button>
+                ) : null}
                 <button
                   className={cx(
                     "rounded-2xl border px-4 py-3 text-sm font-semibold shadow-sm transition",
@@ -1708,6 +1738,48 @@ export function SupportJourneeWorkspace({
                   </button>
                 </div>
               </section>
+
+              {forceTakeoverConfirmationOpen && lockedBy ? (
+                <section
+                  aria-labelledby="force-takeover-title"
+                  className="rounded-[26px] border border-amber-200 bg-amber-50 p-5 shadow-sm"
+                  role="alertdialog"
+                >
+                  <div className="flex gap-3">
+                    <AlertTriangle className="mt-0.5 h-5 w-5 flex-none text-amber-700" />
+                    <div>
+                      <h3 className="font-semibold text-amber-950" id="force-takeover-title">
+                        Reprendre le support journée ?
+                      </h3>
+                      <p className="mt-1 text-sm leading-6 text-amber-900">
+                        Le support est actuellement pris en main par {formatModifierName(lockedBy) ?? lockedBy}.
+                        En confirmant, vous devenez le détenteur du verrou et pouvez poursuivre les modifications.
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-amber-800">
+                        Cette reprise est journalisée avec le référent remplacé, votre identité et l&apos;heure.
+                      </p>
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        <button
+                          className="rounded-2xl bg-amber-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-800"
+                          disabled={isBusy}
+                          onClick={handleForceTakeControl}
+                          type="button"
+                        >
+                          Confirmer la reprise
+                        </button>
+                        <button
+                          className="rounded-2xl border border-amber-300 bg-white px-4 py-2.5 text-sm font-semibold text-amber-900 transition hover:bg-amber-100"
+                          disabled={isBusy}
+                          onClick={() => setForceTakeoverConfirmationOpen(false)}
+                          type="button"
+                        >
+                          Annuler
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              ) : null}
 
               <section
                 className={cx(
