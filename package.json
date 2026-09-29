@@ -1,6 +1,6 @@
 {
   "name": "demat-bt-bdsn-next",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "private": true,
   "scripts": {
     "dev": "node --use-system-ca ./node_modules/next/dist/bin/next dev",
